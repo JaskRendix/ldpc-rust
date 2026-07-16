@@ -1,0 +1,32 @@
+# -------------------------
+# Rust build artifacts
+# -------------------------
+/target/
+/Cargo.lock
+
+# -------------------------
+# Python virtual env & caches
+# -------------------------
+/.venv/
+/.mypy_cache/
+/__pycache__/
+
+# -------------------------
+# VSCode / Editor junk
+# -------------------------
+.vscode/
+*.swp
+*.swo
+
+# -------------------------
+# OS junk
+# -------------------------
+Thumbs.db
+.DS_Store
+
+# -------------------------
+# LDPC simulation outputs
+# -------------------------
+*.csv
+*.mat
+ber_spa_256_512.csv
