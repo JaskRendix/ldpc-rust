@@ -1,5 +1,6 @@
 use ldpc_rust::matrices::h_256_512::H_256_512;
 
+use ldpc_rust::bitarray::BitArray;
 use ldpc_rust::ldpc_decoder::LdpcDecoder;
 use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
 
@@ -59,14 +60,14 @@ fn benchmark_bitflip(smoke: bool) {
     let start = Instant::now();
 
     for _ in 0..trials {
-        let mut cw = [0u8; 512];
+        let mut cw = [0u8; 64];
 
-        // Inject error_bits distinct random bit errors.
+        // Inject error_bits distinct random bit errors using packed BitArray helper.
         let mut flipped = std::collections::HashSet::new();
         while flipped.len() < error_bits {
             let idx = rng.random_range(0..512);
             if flipped.insert(idx) {
-                cw[idx] ^= 1;
+                BitArray::xor_bit(&mut cw, idx);
             }
         }
 
@@ -100,7 +101,6 @@ fn benchmark_bitflip(smoke: bool) {
 fn benchmark_spa_llr(smoke: bool) {
     println!("SPA LLR Benchmark (256x512):");
 
-    let h_matrix: Vec<Vec<u8>> = H_256_512.iter().map(|row| row.to_vec()).collect();
     let mut rng = StdRng::seed_from_u64(SEED);
 
     let n = 512;
@@ -116,7 +116,7 @@ fn benchmark_spa_llr(smoke: bool) {
     // fully resets internal state from the input LLR each call, so this
     // is safe and keeps the comparison to bit-flip apples-to-apples
     // (measuring decode cost only, not allocation cost).
-    let mut decoder = SpaDecoderLLR::new(h_matrix);
+    let mut decoder = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(iterations);
 
     let mut converged_count = 0usize;
