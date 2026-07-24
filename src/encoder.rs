@@ -28,11 +28,11 @@ impl LdpcEncoder {
         // Systematic part
         cw[..256].copy_from_slice(message);
 
-        // Parity part: p_i = XOR_j (message[j] & P[j][i])
+        // Parity part: p_i = XOR_j (message[j] & P[i][j])
         for (i, parity_bit) in cw[256..].iter_mut().enumerate() {
             let mut sum = 0u8;
             for (j, &msg_bit) in message.iter().enumerate() {
-                sum ^= msg_bit & self.parity_generator[j][i];
+                sum ^= msg_bit & self.parity_generator[i][j];
             }
             *parity_bit = sum;
         }
