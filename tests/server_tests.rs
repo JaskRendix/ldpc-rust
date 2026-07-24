@@ -144,4 +144,3 @@ async fn test_spa_decode_invalid_scaling_factor() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
-
