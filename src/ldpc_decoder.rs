@@ -7,12 +7,11 @@ use crate::matrices::h_256_512::H_256_512;
 /// - NWBF (Normalized Weighted Bit‑Flip)
 /// - Gallager‑A
 /// - Gallager‑B
-/// 
+///
 /// Codewords `cw` are expected to be packed bit arrays of 64 bytes (512 bits).
 pub struct LdpcDecoder {
     pub max_iter: usize,
     pub gallager_b_threshold: u8,
-    // Stable Rust compatible fixed-size slice representations via Box
     row_to_cols: Box<[Vec<usize>; 256]>,
     col_to_rows: Box<[Vec<usize>; 512]>,
     check_weights_fixed: Box<[u32; 256]>,
@@ -26,26 +25,30 @@ impl LdpcDecoder {
         let mut check_weights_fixed = [0u32; 256];
         let mut col_degrees = [0u32; 512];
 
-        for i in 0..256 {
+        for (i, row) in row_to_cols_vec.iter_mut().enumerate().take(256) {
             let mut deg = 0;
             for j in 0..512 {
                 if H_256_512[i][j] == 1 {
-                    row_to_cols_vec[i].push(j);
+                    row.push(j);
                     col_to_rows_vec[j].push(i);
                     deg += 1;
                 }
             }
             // Scale weights by 65536 ($2^{16}$) for fixed-point arithmetic
-            let safe_deg = deg.max(1) as u32;
+            let safe_deg = deg.max(1);
             check_weights_fixed[i] = 65536 / safe_deg;
         }
 
-        for j in 0..512 {
-            col_degrees[j] = col_to_rows_vec[j].len() as u32;
+        for (j, col) in col_to_rows_vec.iter().enumerate().take(512) {
+            col_degrees[j] = col.len() as u32;
         }
 
-        let row_to_cols_array: [Vec<usize>; 256] = row_to_cols_vec.try_into().unwrap();
-        let col_to_rows_array: [Vec<usize>; 512] = col_to_rows_vec.try_into().unwrap();
+        let row_to_cols_array: [Vec<usize>; 256] = row_to_cols_vec
+            .try_into()
+            .unwrap_or_else(|_| panic!("Failed to convert row_to_cols vector to array"));
+        let col_to_rows_array: [Vec<usize>; 512] = col_to_rows_vec
+            .try_into()
+            .unwrap_or_else(|_| panic!("Failed to convert col_to_rows vector to array"));
 
         Self {
             max_iter: 50,
@@ -78,9 +81,9 @@ impl LdpcDecoder {
     pub fn get_parity(&self, cw: &[u8; 64], sn: &mut [u8; 256]) -> bool {
         let mut valid = true;
 
-        for i in 0..256 {
+        for (i, row) in self.row_to_cols.iter().enumerate() {
             let mut sum = 0u8;
-            for &j in &self.row_to_cols[i] {
+            for &j in row {
                 sum ^= BitArray::get_bit(cw, j);
             }
             sn[i] = sum;
@@ -94,9 +97,9 @@ impl LdpcDecoder {
 
     /// Score[j] = number of unsatisfied checks involving bit j
     pub fn get_score(&self, sn: &[u8; 256], en: &mut [u8; 512]) {
-        for j in 0..512 {
+        for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut score = 0u8;
-            for &i in &self.col_to_rows[j] {
+            for &i in col {
                 if sn[i] == 1 {
                     score += 1;
                 }
@@ -116,11 +119,11 @@ impl LdpcDecoder {
 
         let mut flip = [false; 512];
 
-        for j in 0..512 {
+        for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut votes = 0u8;
             let total = self.col_degrees[j] as u8;
 
-            for &i in &self.col_to_rows[j] {
+            for &i in col {
                 if sn[i] == 1 {
                     votes += 1;
                 }
@@ -131,8 +134,8 @@ impl LdpcDecoder {
             }
         }
 
-        for j in 0..512 {
-            if flip[j] {
+        for (j, &should_flip) in flip.iter().enumerate() {
+            if should_flip {
                 BitArray::xor_bit(cw, j);
             }
         }
@@ -151,11 +154,11 @@ impl LdpcDecoder {
 
         let mut flip = [false; 512];
 
-        for j in 0..512 {
+        for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut votes = 0u8;
             let total = self.col_degrees[j] as u8;
 
-            for &i in &self.col_to_rows[j] {
+            for &i in col {
                 if sn[i] == 1 {
                     votes += 1;
                 }
@@ -166,8 +169,8 @@ impl LdpcDecoder {
             }
         }
 
-        for j in 0..512 {
-            if flip[j] {
+        for (j, &should_flip) in flip.iter().enumerate() {
+            if should_flip {
                 BitArray::xor_bit(cw, j);
             }
         }
@@ -185,9 +188,9 @@ impl LdpcDecoder {
         }
 
         let mut scores = [0u32; 512];
-        for j in 0..512 {
+        for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut s = 0u32;
-            for &i in &self.col_to_rows[j] {
+            for &i in col {
                 if sn[i] == 1 {
                     s += self.check_weights_fixed[i];
                 }
@@ -198,9 +201,9 @@ impl LdpcDecoder {
         let mut max_score = 0u32;
         let mut best_j = 0usize;
 
-        for j in 0..512 {
-            if scores[j] > max_score {
-                max_score = scores[j];
+        for (j, &score) in scores.iter().enumerate() {
+            if score > max_score {
+                max_score = score;
                 best_j = j;
             }
         }
@@ -222,9 +225,9 @@ impl LdpcDecoder {
         }
 
         let mut scores = [0u32; 512];
-        for j in 0..512 {
+        for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut s = 0u32;
-            for &i in &self.col_to_rows[j] {
+            for &i in col {
                 if sn[i] == 1 {
                     s += 1;
                 }
@@ -233,15 +236,15 @@ impl LdpcDecoder {
         }
 
         let mut max_score = 0u32;
-        for j in 0..512 {
-            if scores[j] > max_score {
-                max_score = scores[j];
+        for &score in scores.iter() {
+            if score > max_score {
+                max_score = score;
             }
         }
 
         if max_score > 0 {
-            for j in 0..512 {
-                if scores[j] == max_score {
+            for (j, &score) in scores.iter().enumerate() {
+                if score == max_score {
                     BitArray::xor_bit(cw, j);
                 }
             }
@@ -260,9 +263,9 @@ impl LdpcDecoder {
         }
 
         let mut scores = [0u32; 512];
-        for j in 0..512 {
+        for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut votes = 0u32;
-            for &i in &self.col_to_rows[j] {
+            for &i in col {
                 if sn[i] == 1 {
                     votes += 1;
                 }
@@ -272,15 +275,15 @@ impl LdpcDecoder {
         }
 
         let mut max_score = 0u32;
-        for j in 0..512 {
-            if scores[j] > max_score {
-                max_score = scores[j];
+        for &score in scores.iter() {
+            if score > max_score {
+                max_score = score;
             }
         }
 
         if max_score > 0 {
-            for j in 0..512 {
-                if scores[j] == max_score {
+            for (j, &score) in scores.iter().enumerate() {
+                if score == max_score {
                     BitArray::xor_bit(cw, j);
                 }
             }
