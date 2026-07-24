@@ -28,7 +28,9 @@ fn main() {
         vec![-2.0, -1.0, 0.0, 0.5, 1.0, 1.5, 2.0]
     };
 
-    eprintln!("seed={base_seed} min_error_bits={MIN_ERROR_BITS} max_trials={MAX_TRIALS} (multithreaded)");
+    eprintln!(
+        "seed={base_seed} min_error_bits={MIN_ERROR_BITS} max_trials={MAX_TRIALS} (multithreaded)"
+    );
     println!("snr_db,ber,trials,error_bits,total_bits");
 
     // Distribute SNR points concurrently across threads using std::thread::scope
