@@ -195,7 +195,7 @@ fn test_gallager_b_converges_on_single_error() {
     decoder.set_gallager_b_threshold(2);
 
     let mut cw = [0u8; 64];
-    BitArray::xor_bit(&mut cw, 10); // Inject single bit error
+    BitArray::xor_bit(&mut cw, 10);
 
     let mut converged = false;
     for _ in 0..10 {
@@ -205,8 +205,11 @@ fn test_gallager_b_converges_on_single_error() {
         }
     }
 
-    assert!(converged, "Gallager-B failed to converge on a single bit error");
-    
+    assert!(
+        converged,
+        "Gallager-B failed to converge on a single bit error"
+    );
+
     let mut sn = [0u8; 256];
     assert!(decoder.get_parity(&cw, &mut sn));
 }
