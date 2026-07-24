@@ -172,7 +172,10 @@ async fn decode_spa(
         if !alpha.is_finite() || alpha < 0.0 {
             return Err((
                 StatusCode::BAD_REQUEST,
-                format!("scaling_factor must be a finite non-negative number, got {}", alpha),
+                format!(
+                    "scaling_factor must be a finite non-negative number, got {}",
+                    alpha
+                ),
             ));
         }
         decoder.set_scaling_factor(alpha);
