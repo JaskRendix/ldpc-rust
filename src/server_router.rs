@@ -91,8 +91,13 @@ async fn decode_bitflip(
 
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let mut cw = [0u8; 512];
-    cw.copy_from_slice(&payload.cw);
+    // Pack the 512 individual bits into a 64-byte array
+    let mut cw = [0u8; 64];
+    for (j, &bit) in payload.cw.iter().enumerate() {
+        if bit == 1 {
+            BitArray::set_bit(&mut cw, j);
+        }
+    }
 
     for _ in 0..payload.iterations {
         if decoder.iterate_bitflip(&mut cw) {
@@ -104,13 +109,19 @@ async fn decode_bitflip(
     let valid = decoder.get_parity(&cw, &mut sn);
     let syndrome_weight = sn.iter().map(|b| *b as usize).sum();
 
+    // Unpack the 64-byte array back into a 512-element Vec<u8> for the response
+    let mut unpacked_cw = Vec::with_capacity(512);
+    for j in 0..512 {
+        unpacked_cw.push(BitArray::get_bit(&cw, j));
+    }
+
     DECODE_COUNT.fetch_add(1, Ordering::Relaxed);
     LAST_LATENCY_US.store(start.elapsed().as_micros() as u64, Ordering::Relaxed);
     LAST_ITERATIONS.store(payload.iterations as u64, Ordering::Relaxed);
 
     Ok(Json(DecodeResponse {
         valid,
-        cw: cw.to_vec(),
+        cw: unpacked_cw,
         syndrome_weight,
     }))
 }
