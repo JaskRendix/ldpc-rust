@@ -6,7 +6,7 @@ use ldpc_rust::matrices::h_256_512::H_256_512;
 fn test_parity_all_zero_codeword_is_valid() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let cw = [0u8; 512];
+    let cw = [0u8; 64];
     let mut sn = [0u8; 256];
 
     assert!(decoder.get_parity(&cw, &mut sn));
@@ -17,7 +17,7 @@ fn test_parity_all_zero_codeword_is_valid() {
 fn test_parity_single_bit_error_is_invalid() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let mut cw = [0u8; 512];
+    let mut cw = [0u8; 64];
     BitArray::set_bit(&mut cw, 10, true);
 
     let mut sn = [0u8; 256];
@@ -29,7 +29,7 @@ fn test_score_all_zero_is_zero() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
     let sn = [0u8; 256];
-    let mut en = [0u8; 512];
+    let mut en = [0u8; 64]; // Packed bits output size
 
     decoder.get_score(&sn, &mut en);
 
@@ -40,7 +40,7 @@ fn test_score_all_zero_is_zero() {
 fn test_bitflip_runs_safely_on_single_error() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let mut cw = [0u8; 512];
+    let mut cw = [0u8; 64];
     BitArray::xor_bit(&mut cw, 42);
 
     for _ in 0..20 {
@@ -50,8 +50,7 @@ fn test_bitflip_runs_safely_on_single_error() {
     let mut sn = [0u8; 256];
     decoder.get_parity(&cw, &mut sn);
 
-    // Safety assertions only
-    assert_eq!(cw.len(), 512);
+    assert_eq!(cw.len(), 64);
     assert_eq!(sn.len(), 256);
 }
 
@@ -59,7 +58,7 @@ fn test_bitflip_runs_safely_on_single_error() {
 fn test_bitflip_multiple_errors_runs_safely() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let mut cw = [0u8; 512];
+    let mut cw = [0u8; 64];
     BitArray::xor_bit(&mut cw, 10);
     BitArray::xor_bit(&mut cw, 200);
     BitArray::xor_bit(&mut cw, 350);
@@ -71,7 +70,7 @@ fn test_bitflip_multiple_errors_runs_safely() {
     let mut sn = [0u8; 256];
     decoder.get_parity(&cw, &mut sn);
 
-    assert_eq!(cw.len(), 512);
+    assert_eq!(cw.len(), 64);
     assert_eq!(sn.len(), 256);
 }
 
@@ -79,7 +78,7 @@ fn test_bitflip_multiple_errors_runs_safely() {
 fn test_decoder_does_not_modify_outside_bounds() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let mut cw = [0u8; 512];
+    let mut cw = [0u8; 64];
     let before = cw;
 
     decoder.iterate_bitflip(&mut cw);
@@ -91,7 +90,7 @@ fn test_decoder_does_not_modify_outside_bounds() {
 fn test_wbf_runs_and_preserves_lengths() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let mut cw = [0u8; 512];
+    let mut cw = [0u8; 64];
     BitArray::xor_bit(&mut cw, 123);
 
     for _ in 0..20 {
@@ -101,7 +100,7 @@ fn test_wbf_runs_and_preserves_lengths() {
     let mut sn = [0u8; 256];
     decoder.get_parity(&cw, &mut sn);
 
-    assert_eq!(cw.len(), 512);
+    assert_eq!(cw.len(), 64);
     assert_eq!(sn.len(), 256);
 }
 
@@ -109,7 +108,7 @@ fn test_wbf_runs_and_preserves_lengths() {
 fn test_mwbf_runs_and_preserves_lengths() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let mut cw = [0u8; 512];
+    let mut cw = [0u8; 64];
     BitArray::xor_bit(&mut cw, 77);
 
     for _ in 0..20 {
@@ -119,7 +118,7 @@ fn test_mwbf_runs_and_preserves_lengths() {
     let mut sn = [0u8; 256];
     decoder.get_parity(&cw, &mut sn);
 
-    assert_eq!(cw.len(), 512);
+    assert_eq!(cw.len(), 64);
     assert_eq!(sn.len(), 256);
 }
 
@@ -127,7 +126,7 @@ fn test_mwbf_runs_and_preserves_lengths() {
 fn test_nwbf_runs_and_preserves_lengths() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let mut cw = [0u8; 512];
+    let mut cw = [0u8; 64];
     BitArray::xor_bit(&mut cw, 5);
 
     for _ in 0..20 {
@@ -137,7 +136,7 @@ fn test_nwbf_runs_and_preserves_lengths() {
     let mut sn = [0u8; 256];
     decoder.get_parity(&cw, &mut sn);
 
-    assert_eq!(cw.len(), 512);
+    assert_eq!(cw.len(), 64);
     assert_eq!(sn.len(), 256);
 }
 
@@ -145,7 +144,7 @@ fn test_nwbf_runs_and_preserves_lengths() {
 fn test_gallager_a_runs_and_preserves_lengths() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let mut cw = [0u8; 512];
+    let mut cw = [0u8; 64];
     BitArray::xor_bit(&mut cw, 19);
 
     for _ in 0..20 {
@@ -155,7 +154,7 @@ fn test_gallager_a_runs_and_preserves_lengths() {
     let mut sn = [0u8; 256];
     decoder.get_parity(&cw, &mut sn);
 
-    assert_eq!(cw.len(), 512);
+    assert_eq!(cw.len(), 64);
     assert_eq!(sn.len(), 256);
 }
 
@@ -163,7 +162,7 @@ fn test_gallager_a_runs_and_preserves_lengths() {
 fn test_gallager_b_runs_and_preserves_lengths() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
-    let mut cw = [0u8; 512];
+    let mut cw = [0u8; 64];
     BitArray::xor_bit(&mut cw, 201);
 
     for _ in 0..20 {
@@ -173,19 +172,19 @@ fn test_gallager_b_runs_and_preserves_lengths() {
     let mut sn = [0u8; 256];
     decoder.get_parity(&cw, &mut sn);
 
-    assert_eq!(cw.len(), 512);
+    assert_eq!(cw.len(), 64);
     assert_eq!(sn.len(), 256);
 }
 
 #[test]
 fn test_wbf_runs_safely_on_single_bit_error() {
     let decoder = LdpcDecoder::new(&H_256_512);
-    let mut cw = [0u8; 512];
+    let mut cw = [0u8; 64];
     BitArray::xor_bit(&mut cw, 123);
 
     for _ in 0..200 {
         decoder.iterate_wbf(&mut cw);
     }
 
-    assert_eq!(cw.len(), 512);
+    assert_eq!(cw.len(), 64);
 }
