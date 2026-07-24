@@ -1,5 +1,3 @@
-use std::f64;
-
 pub struct SpaDecoderLLR {
     pub m: usize,
     pub n: usize,
