@@ -2,7 +2,7 @@ use ldpc_rust::encoder::LDPC_ENCODER;
 use ldpc_rust::ldpc_decoder::LdpcDecoder;
 use ldpc_rust::matrices::h_256_512::H_256_512;
 use rand::rngs::ThreadRng;
-use rand::RngCore;
+use rand::{Rng, RngCore};
 
 /// Helper: compute syndrome using existing decoder parity function.
 fn syndrome_is_zero(codeword: &[u8; 512]) -> bool {
