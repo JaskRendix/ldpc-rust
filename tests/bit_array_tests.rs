@@ -98,7 +98,7 @@ fn xor_bytes_zero_length_is_noop() {
 
     BitArray::xor_bytes(&mut dst, &src);
 
-    assert_eq!(dst, []);
+    assert_eq!(dst, [0u8; 0]);
 }
 
 #[test]
