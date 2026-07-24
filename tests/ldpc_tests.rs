@@ -229,4 +229,3 @@ fn test_spa_decoder_nms_convergence() {
     assert_eq!(decoded.len(), 512);
     assert!(decoded.iter().all(|&b| b == 0));
 }
-
