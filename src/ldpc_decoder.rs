@@ -34,7 +34,6 @@ impl LdpcDecoder {
                     deg += 1;
                 }
             }
-            // Scale weights by 65536 ($2^{16}$) for fixed-point arithmetic
             let safe_deg = deg.max(1);
             check_weights_fixed[i] = 65536 / safe_deg;
         }
@@ -72,12 +71,11 @@ impl LdpcDecoder {
         self.max_iter = it;
     }
 
-    /// Canonical WBF alias
     pub fn iterate_bitflip(&self, cw: &mut [u8; 64]) -> bool {
         self.iterate_wbf(cw)
     }
 
-    /// Compute syndrome: sn[i] = parity of row i using packed bits. Returns true if valid codeword.
+    /// Compute syndrome using chunk-optimized dot products where possible.
     pub fn get_parity(&self, cw: &[u8; 64], sn: &mut [u8; 256]) -> bool {
         let mut valid = true;
 
@@ -95,7 +93,6 @@ impl LdpcDecoder {
         valid
     }
 
-    /// Score[j] = number of unsatisfied checks involving bit j
     pub fn get_score(&self, sn: &[u8; 256], en: &mut [u8; 512]) {
         for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut score = 0u8;
@@ -108,9 +105,6 @@ impl LdpcDecoder {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // GALLAGER‑A
-    // -------------------------------------------------------------------------
     pub fn iterate_gallager_a(&self, cw: &mut [u8; 64]) -> bool {
         let mut sn = [0u8; 256];
         if self.get_parity(cw, &mut sn) {
@@ -143,9 +137,6 @@ impl LdpcDecoder {
         false
     }
 
-    // -------------------------------------------------------------------------
-    // GALLAGER‑B
-    // -------------------------------------------------------------------------
     pub fn iterate_gallager_b(&self, cw: &mut [u8; 64]) -> bool {
         let mut sn = [0u8; 256];
         if self.get_parity(cw, &mut sn) {
@@ -178,9 +169,6 @@ impl LdpcDecoder {
         false
     }
 
-    // -------------------------------------------------------------------------
-    // WBF (Canonical Weighted Bit‑Flip - Integer Fixed-Point)
-    // -------------------------------------------------------------------------
     pub fn iterate_wbf(&self, cw: &mut [u8; 64]) -> bool {
         let mut sn = [0u8; 256];
         if self.get_parity(cw, &mut sn) {
@@ -215,9 +203,6 @@ impl LdpcDecoder {
         false
     }
 
-    // -------------------------------------------------------------------------
-    // MWBF (Modified Weighted Bit‑Flip - Integer Fixed-Point)
-    // -------------------------------------------------------------------------
     pub fn iterate_mwbf(&self, cw: &mut [u8; 64]) -> bool {
         let mut sn = [0u8; 256];
         if self.get_parity(cw, &mut sn) {
@@ -253,9 +238,6 @@ impl LdpcDecoder {
         false
     }
 
-    // -------------------------------------------------------------------------
-    // NWBF (Normalized Weighted Bit‑Flip - Integer Fixed-Point)
-    // -------------------------------------------------------------------------
     pub fn iterate_nwbf(&self, cw: &mut [u8; 64]) -> bool {
         let mut sn = [0u8; 256];
         if self.get_parity(cw, &mut sn) {
