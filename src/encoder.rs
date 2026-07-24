@@ -2,11 +2,10 @@ use crate::matrices::h_256_512::H_256_512;
 use std::sync::LazyLock;
 
 /// Global, lazily-initialized CCSDS LDPC encoder.
-/// Computes B^{-1}A only once, on first use.
 pub static LDPC_ENCODER: LazyLock<LdpcEncoder> = LazyLock::new(LdpcEncoder::new);
 
 pub struct LdpcEncoder {
-    /// Parity generator matrix P = B^{-1} A (256 × 256)
+    /// Parity generator matrix P (256 × 256) such that codeword is [message | parity]
     parity_generator: [[u8; 256]; 256],
 }
 
@@ -22,78 +21,85 @@ impl LdpcEncoder {
         Self { parity_generator }
     }
 
-    /// Encode a 256-bit message into a 512-bit systematic codeword.
+    /// Encode a 256-bit message into a 512-bit systematic codeword [u | p].
     pub fn encode(&self, message: &[u8; 256]) -> [u8; 512] {
         let mut cw = [0u8; 512];
 
-        // Systematic part
+        // Systematic part: u
         cw[..256].copy_from_slice(message);
 
-        // Parity part: p = Pᵀ * u
-        for (i, parity_bit) in cw[256..].iter_mut().enumerate() {
+        // Parity part: p_i = sum_j (message[j] * parity_generator[j][i])
+        for i in 0..256 {
             let mut sum = 0u8;
-            for (j, &msg_bit) in message.iter().enumerate() {
-                sum ^= self.parity_generator[j][i] & msg_bit;
+            for j in 0..256 {
+                sum ^= message[j] & self.parity_generator[j][i];
             }
-            *parity_bit = sum;
+            cw[256 + i] = sum;
         }
 
         cw
     }
 
-    /// Compute P = B^{-1} A over GF(2).
+    /// Compute generator sub-matrix P from H = [A | B] where H is 128 rows (or 256 rows depending on rank).
+    /// For CCSDS 256x512, H has 256 rows and 512 columns.
     fn compute_generator_matrix(h: &[[u8; 512]; 256]) -> [[u8; 256]; 256] {
+        // Rearrange or split H into H = [A | B] where B is 256x256
         let mut a = [[0u8; 256]; 256];
         let mut b = [[0u8; 256]; 256];
 
-        // Split H = [A | B]
         for (i, row) in h.iter().enumerate() {
-            a[i].copy_from_slice(&row[..256]);
-            b[i].copy_from_slice(&row[256..]);
+            // Standard CCSDS systematic form often places parity on the right or requires Gaussian elimination
+            // to find an invertible 256x256 submatrix B. 
+            // Assuming columns 256..512 form B:
+            for j in 0..256 {
+                a[i][j] = row[j];
+                b[i][j] = row[256 + j];
+            }
         }
 
         let b_inv = Self::invert_gf2(&b);
 
-        // Compute P = B^{-1} A
+        // P = B^{-1} * A over GF(2)
         let mut p = [[0u8; 256]; 256];
-        for (i, p_row) in p.iter_mut().enumerate() {
-            for (j, p_val) in p_row.iter_mut().enumerate() {
+        for i in 0..256 {
+            for j in 0..256 {
                 let mut sum = 0u8;
                 for k in 0..256 {
                     sum ^= b_inv[i][k] & a[k][j];
                 }
-                *p_val = sum;
+                p[i][j] = sum;
             }
         }
 
         p
     }
 
-    /// Invert a 256×256 matrix over GF(2) using Gaussian elimination.
+    /// Invert a 256×256 matrix over GF(2) using Gauss-Jordan elimination.
     fn invert_gf2(mat: &[[u8; 256]; 256]) -> [[u8; 256]; 256] {
         let mut a = *mat;
         let mut inv = [[0u8; 256]; 256];
 
-        // Identity matrix
-        for (i, row) in inv.iter_mut().enumerate() {
-            row[i] = 1;
+        for i in 0..256 {
+            inv[i][i] = 1;
         }
 
         for col in 0..256 {
-            // Find pivot
             let mut pivot = col;
             while pivot < 256 && a[pivot][col] == 0 {
                 pivot += 1;
             }
-            assert!(pivot < 256, "Matrix is singular over GF(2)");
+            
+            if pivot >= 256 {
+                // If singular, try finding a pivot in subsequent columns or handle gracefully.
+                // For standard CCSDS H_256_512, B should be full rank or require column swaps.
+                panic!("Matrix B is singular or non-invertible at column {col}");
+            }
 
-            // Swap rows
             if pivot != col {
                 a.swap(col, pivot);
                 inv.swap(col, pivot);
             }
 
-            // Eliminate other rows
             for row in 0..256 {
                 if row != col && a[row][col] == 1 {
                     for k in 0..256 {
