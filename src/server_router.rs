@@ -5,30 +5,19 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::bitarray::BitArray;
 use crate::ldpc_decoder::LdpcDecoder;
 use crate::matrices::h_256_512::H_256_512;
 use crate::spa_decoder_llr::SpaDecoderLLR;
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::OnceLock;
 
 static DECODE_COUNT: AtomicU64 = AtomicU64::new(0);
 static LAST_LATENCY_US: AtomicU64 = AtomicU64::new(0);
 static LAST_ITERATIONS: AtomicU64 = AtomicU64::new(0);
 
 /// Upper bound on client-supplied iteration counts for both endpoints.
-/// Without this, a request can tie up a worker thread indefinitely
-/// (e.g. `"iterations": 50000000`), which is a trivial DoS vector on a
-/// public-facing decode endpoint.
 const MAX_ITERATIONS: usize = 200;
-
-/// H_256_512 converted once into the Vec<Vec<u8>> shape SpaDecoderLLR
-/// expects, instead of rebuilding it from the const array on every
-/// request.
-fn h_matrix_vec() -> &'static Vec<Vec<u8>> {
-    static H_MATRIX_VEC: OnceLock<Vec<Vec<u8>>> = OnceLock::new();
-    H_MATRIX_VEC.get_or_init(|| H_256_512.iter().map(|row| row.to_vec()).collect())
-}
 
 pub async fn metrics() -> String {
     format!(
@@ -94,9 +83,7 @@ async fn decode_bitflip(
     // Pack the 512 individual bits into a 64-byte array
     let mut cw = [0u8; 64];
     for (j, &bit) in payload.cw.iter().enumerate() {
-        if bit == 1 {
-            BitArray::set_bit(&mut cw, j);
-        }
+        BitArray::set_bit(&mut cw, j, bit == 1);
     }
 
     for _ in 0..payload.iterations {
@@ -177,7 +164,7 @@ async fn decode_spa(
         ));
     }
 
-    let mut decoder = SpaDecoderLLR::new(h_matrix_vec().clone());
+    let mut decoder = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(max_iter);
 
     let decoded = decoder.decode(&req.cw);
