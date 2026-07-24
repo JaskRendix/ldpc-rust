@@ -2,8 +2,8 @@ use rand::rngs::StdRng;
 use rand_distr::{Distribution, StandardNormal};
 
 /// Computes the BPSK AWGN Log-Likelihood Ratio (LLR) for a given transmitted bit and SNR.
-/// 
-/// Note: `snr_db` here is treated as Es/N0 (symbol SNR). For a rate-1/2 code, 
+///
+/// Note: `snr_db` here is treated as Es/N0 (symbol SNR). For a rate-1/2 code,
 /// Es/N0 = 0.5 * Eb/N0.
 pub fn bpsk_awgn_llr(bit: u8, snr_db: f64, rng: &mut StdRng) -> f64 {
     let snr_linear = 10.0_f64.powf(snr_db / 10.0);
