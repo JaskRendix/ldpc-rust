@@ -40,4 +40,21 @@ impl BitArray {
 
         bytes[byte] ^= 1 << offset;
     }
+
+    #[inline]
+    pub fn xor_bytes(dst: &mut [u8], src: &[u8]) {
+        let len = std::cmp::min(dst.len(), src.len());
+        let (dst_chunks, dst_remainder) = dst[..len].split_at_mut(len & !7usize);
+        let (src_chunks, src_remainder) = src[..len].split_at(len & !7usize);
+
+        for (d, s) in dst_chunks.chunks_exact_mut(8).zip(src_chunks.chunks_exact(8)) {
+            let d_word = u64::from_ne_bytes(d.try_into().unwrap());
+            let s_word = u64::from_ne_bytes(s.try_into().unwrap());
+            d.copy_from_slice(&(d_word ^ s_word).to_ne_bytes());
+        }
+
+        for (d, s) in dst_remainder.iter_mut().zip(src_remainder.iter()) {
+            *d ^= *s;
+        }
+    }
 }
