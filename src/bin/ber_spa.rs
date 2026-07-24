@@ -4,6 +4,7 @@ use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use std::io::{self, Write};
 use std::thread;
 
 const MIN_ERROR_BITS: usize = 50;
@@ -33,13 +34,11 @@ fn main() {
     );
     println!("snr_db,ber,trials,error_bits,total_bits");
 
-    // Distribute SNR points concurrently across threads using std::thread::scope
     let results: Vec<(f64, f64, usize, usize, usize)> = thread::scope(|s| {
         let handles: Vec<_> = snr_points
             .iter()
             .enumerate()
             .map(|(idx, &snr_db)| {
-                // Derive a unique, deterministic seed per SNR point
                 let thread_seed = base_seed.wrapping_add(idx as u64 * 0x9E3779B97F4A7C15);
 
                 s.spawn(move || {
@@ -69,15 +68,20 @@ fn main() {
                         }
                         trials += 1;
 
+                        if trials % 100 == 0 && !smoke {
+                            let current_ber = error_bits as f64 / total_bits as f64;
+                            eprint!("\r[SNR {snr_db:+.1}dB] Trials: {trials}/{max_trials} | Errors: {error_bits}/{MIN_ERROR_BITS} | BER: {current_ber:.5}   ");
+                            let _ = io::stderr().flush();
+                        }
+
                         if !smoke && error_bits >= MIN_ERROR_BITS {
                             break;
                         }
                     }
 
+                    eprintln!("\r[SNR {snr_db:+.1}dB] Completed: trials={trials} errors={error_bits}                  ");
+
                     let ber = error_bits as f64 / total_bits as f64;
-                    eprintln!(
-                        "snr={snr_db}dB trials={trials} error_bits={error_bits} total_bits={total_bits} ber={ber}"
-                    );
                     (snr_db, ber, trials, error_bits, total_bits)
                 })
             })
