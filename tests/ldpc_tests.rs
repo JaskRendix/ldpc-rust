@@ -29,7 +29,7 @@ fn test_score_all_zero_is_zero() {
     let decoder = LdpcDecoder::new(&H_256_512);
 
     let sn = [0u8; 256];
-    let mut en = [0u8; 64]; // Packed bits output size
+    let mut en = [0u8; 512]; // Unpacked score output size
 
     decoder.get_score(&sn, &mut en);
 
