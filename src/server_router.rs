@@ -124,6 +124,7 @@ pub struct SpaDecodeRequest {
     pub cw: Vec<f64>, // LLRs, length MUST be 512, values MUST be finite
     pub snr_db: f64,
     pub iterations: Option<usize>,
+    pub scaling_factor: Option<f64>, // Optional NMS scaling factor (e.g. 0.75)
 }
 
 #[derive(Serialize)]
@@ -166,6 +167,16 @@ async fn decode_spa(
 
     let mut decoder = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(max_iter);
+
+    if let Some(alpha) = req.scaling_factor {
+        if !alpha.is_finite() || alpha < 0.0 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!("scaling_factor must be a finite non-negative number, got {}", alpha),
+            ));
+        }
+        decoder.set_scaling_factor(alpha);
+    }
 
     let decoded = decoder.decode(&req.cw);
 
