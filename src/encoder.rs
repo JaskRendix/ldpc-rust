@@ -49,7 +49,7 @@ impl LdpcEncoder {
 
         for (i, row) in h.iter().enumerate() {
             // Standard CCSDS systematic form often places parity on the right or requires Gaussian elimination
-            // to find an invertible 256x256 submatrix B. 
+            // to find an invertible 256x256 submatrix B.
             // Assuming columns 256..512 form B:
             for j in 0..256 {
                 a[i][j] = row[j];
@@ -88,7 +88,7 @@ impl LdpcEncoder {
             while pivot < 256 && a[pivot][col] == 0 {
                 pivot += 1;
             }
-            
+
             if pivot >= 256 {
                 // If singular, try finding a pivot in subsequent columns or handle gracefully.
                 // For standard CCSDS H_256_512, B should be full rank or require column swaps.
