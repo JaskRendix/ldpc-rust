@@ -46,7 +46,6 @@ The SPA, Min‑Sum, and NMS decoders run tight numerical loops without garbage�
 
 
 ```
-
 src/
 bitarray.rs
 channel.rs
@@ -73,7 +72,6 @@ spa_decoder_tests.rs
 
 Cargo.toml
 README.md
-
 ```
 
 ---
@@ -87,7 +85,6 @@ use ldpc_rust::encoder::LDPC_ENCODER;
 
 let message = [0u8; 256]; // raw message
 let codeword = LDPC_ENCODER.encode(&message); // 512-bit systematic codeword [u | p]
-
 ```
 
 ---
@@ -96,20 +93,18 @@ let codeword = LDPC_ENCODER.encode(&message); // 512-bit systematic codeword [u 
 
 ```bash
 cargo test
-
 ```
 
 ---
 
 ## BER Simulation
 
-The SPA/Min‑Sum decoder generates BER curves for the CCSDS 256×512 code.
+The multithreaded SPA/Min‑Sum decoder generates BER curves concurrently across multiple SNR points for the CCSDS 256×512 code.
 
-Output format is `(snr_db, ber)` pairs in CSV format.
+Live progress indicators are printed to `stderr` during execution, keeping `stdout` clean for CSV redirection.
 
 ```bash
 cargo run --release --bin ber_spa > ber_spa_256_512.csv
-
 ```
 
 ---
@@ -118,7 +113,6 @@ cargo run --release --bin ber_spa > ber_spa_256_512.csv
 
 ```bash
 cargo run --release --bin bench
-
 ```
 
 Reports total time, average time per trial, and throughput.
@@ -133,14 +127,12 @@ Start:
 
 ```bash
 cargo run --bin server
-
 ```
 
 Health check:
 
 ```bash
 curl http://localhost:8080/health
-
 ```
 
 ### Bit‑Flip Decode
@@ -149,7 +141,6 @@ curl http://localhost:8080/health
 curl -X POST http://localhost:8080/decode/bitflip \
      -H "Content-Type: application/json" \
      -d '{"cw":[...], "iterations":10}'
-
 ```
 
 ### SPA Decode
@@ -158,7 +149,6 @@ curl -X POST http://localhost:8080/decode/bitflip \
 curl -X POST http://localhost:8080/decode/spa \
      -H "Content-Type: application/json" \
      -d '{"cw":[...], "snr_db":1.0, "iterations":10, "scaling_factor":0.75}'
-
 ```
 
 ---
@@ -169,14 +159,12 @@ Build:
 
 ```bash
 docker build -t ldpc-server .
-
 ```
 
 Run:
 
 ```bash
 docker run -p 8080:8080 ldpc-server
-
 ```
 
 This setup uses only the Dockerfile.
