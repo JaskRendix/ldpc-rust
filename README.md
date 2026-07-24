@@ -10,6 +10,7 @@ The implementation covers:
 
 * hard‑decision decoders: Gallager‑A, Gallager‑B, WBF, MWBF, NWBF
 * soft‑decision decoders: SPA, Min‑Sum, and Normalized Min‑Sum (NMS) in the LLR domain
+* systematic LDPC encoder for generating valid codewords ($k = 256 \to n = 512$)
 * CCSDS matrices: 128×256 and 256×512
 * BER simulation tools
 * an Axum HTTP microservice
@@ -43,29 +44,49 @@ The SPA, Min‑Sum, and NMS decoders run tight numerical loops without garbage�
 
 ## Project Layout
 
+
 ```
+
 src/
-  bitarray.rs
-  ldpc_decoder.rs
-  spa_decoder_llr.rs
-  matrices/
-    h_128_256.rs
-    h_256_512.rs
-    mod.rs
-  server_router.rs
+bitarray.rs
+channel.rs
+encoder.rs
+ldpc_decoder.rs
+spa_decoder_llr.rs
+matrices/
+h_128_256.rs
+h_256_512.rs
+mod.rs
+server_router.rs
 
 src/bin/
-  ber_spa.rs
-  bench.rs
-  server.rs
+ber_spa.rs
+bench.rs
+server.rs
 
 tests/
-  ldpc_tests.rs
-  server_tests.rs
-  spa_decoder_tests.rs
+encoder_tests.rs
+fuzz_decoders.rs
+ldpc_tests.rs
+server_tests.rs
+spa_decoder_tests.rs
 
 Cargo.toml
 README.md
+
+```
+
+---
+
+## Systematic LDPC Encoder
+
+The library includes an embedded systematic encoder for the CCSDS $(512, 256)$ code that maps raw message bits ($k = 256$) into valid systematic codewords ($n = 512$) using a lazily computed generator matrix over $\text{GF}(2)$.
+
+```rust
+use ldpc_rust::encoder::LDPC_ENCODER;
+
+let message = [0u8; 256]; // raw message
+let codeword = LDPC_ENCODER.encode(&message); // 512-bit systematic codeword [u | p]
 
 ```
 
