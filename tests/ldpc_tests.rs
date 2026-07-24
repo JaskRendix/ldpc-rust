@@ -188,3 +188,42 @@ fn test_wbf_runs_safely_on_single_bit_error() {
 
     assert_eq!(cw.len(), 64);
 }
+
+#[test]
+fn test_gallager_b_converges_on_single_error() {
+    let mut decoder = LdpcDecoder::new(&H_256_512);
+    decoder.set_gallager_b_threshold(2);
+
+    let mut cw = [0u8; 64];
+    BitArray::xor_bit(&mut cw, 10); // Inject single bit error
+
+    let mut converged = false;
+    for _ in 0..10 {
+        if decoder.iterate_gallager_b(&mut cw) {
+            converged = true;
+            break;
+        }
+    }
+
+    assert!(converged, "Gallager-B failed to converge on a single bit error");
+    
+    let mut sn = [0u8; 256];
+    assert!(decoder.get_parity(&cw, &mut sn));
+}
+
+#[test]
+fn test_spa_decoder_nms_convergence() {
+    use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
+
+    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    decoder.set_scaling_factor(0.75); // Test Normalized Min-Sum
+    decoder.set_max_iter(30);
+
+    // Provide clean channel LLRs for an all-zero codeword (positive LLRs)
+    let llrs = vec![5.0; 512];
+    let decoded = decoder.decode(&llrs);
+
+    assert_eq!(decoded.len(), 512);
+    assert!(decoded.iter().all(|&b| b == 0));
+}
+
