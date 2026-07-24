@@ -68,7 +68,7 @@ fn main() {
                         }
                         trials += 1;
 
-                        if trials % 100 == 0 && !smoke {
+                        if trials.is_multiple_of(100) && !smoke {
                             let current_ber = error_bits as f64 / total_bits as f64;
                             eprint!("\r[SNR {snr_db:+.1}dB] Trials: {trials}/{max_trials} | Errors: {error_bits}/{MIN_ERROR_BITS} | BER: {current_ber:.5}   ");
                             let _ = io::stderr().flush();
