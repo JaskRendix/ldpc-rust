@@ -2,7 +2,7 @@ use ldpc_rust::encoder::LDPC_ENCODER;
 use ldpc_rust::ldpc_decoder::LdpcDecoder;
 use ldpc_rust::matrices::h_256_512::H_256_512;
 use rand::rngs::ThreadRng;
-use rand::Rng;
+use rand::RngCore;
 
 /// Helper: compute syndrome using existing decoder parity function.
 fn syndrome_is_zero(codeword: &[u8; 512]) -> bool {
@@ -59,7 +59,7 @@ fn test_random_messages_produce_valid_codewords() {
     for _ in 0..50 {
         let mut msg = [0u8; 256];
         for m in msg.iter_mut() {
-            *m = rng.gen::<u8>() & 1;
+            *m = (rng.next_u32() & 1) as u8;
         }
 
         let cw = LDPC_ENCODER.encode(&msg);
@@ -106,7 +106,7 @@ fn test_encode_decode_roundtrip_spa() {
     let mut rng = ThreadRng::default();
     let mut msg = [0u8; 256];
     for m in msg.iter_mut() {
-        *m = rng.gen::<u8>() & 1;
+        *m = (rng.next_u32() & 1) as u8;
     }
 
     let cw = LDPC_ENCODER.encode(&msg);
