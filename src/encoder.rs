@@ -3,11 +3,17 @@ use std::sync::LazyLock;
 
 /// Global, lazily-initialized CCSDS LDPC encoder.
 /// Computes B^{-1}A only once, on first use.
-pub static LDPC_ENCODER: LazyLock<LdpcEncoder> = LazyLock::new(|| LdpcEncoder::new());
+pub static LDPC_ENCODER: LazyLock<LdpcEncoder> = LazyLock::new(LdpcEncoder::new);
 
 pub struct LdpcEncoder {
     /// Parity generator matrix P = B^{-1} A (256 × 256)
     parity_generator: [[u8; 256]; 256],
+}
+
+impl Default for LdpcEncoder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LdpcEncoder {
@@ -24,12 +30,12 @@ impl LdpcEncoder {
         cw[..256].copy_from_slice(message);
 
         // Parity part: p = Pᵀ * u
-        for i in 0..256 {
+        for (i, parity_bit) in cw[256..].iter_mut().enumerate() {
             let mut sum = 0u8;
-            for j in 0..256 {
-                sum ^= self.parity_generator[j][i] & message[j];
+            for (j, &msg_bit) in message.iter().enumerate() {
+                sum ^= self.parity_generator[j][i] & msg_bit;
             }
-            cw[256 + i] = sum;
+            *parity_bit = sum;
         }
 
         cw
@@ -41,24 +47,22 @@ impl LdpcEncoder {
         let mut b = [[0u8; 256]; 256];
 
         // Split H = [A | B]
-        for i in 0..256 {
-            for j in 0..256 {
-                a[i][j] = h[i][j];
-                b[i][j] = h[i][256 + j];
-            }
+        for (i, row) in h.iter().enumerate() {
+            a[i].copy_from_slice(&row[..256]);
+            b[i].copy_from_slice(&row[256..]);
         }
 
         let b_inv = Self::invert_gf2(&b);
 
         // Compute P = B^{-1} A
         let mut p = [[0u8; 256]; 256];
-        for i in 0..256 {
-            for j in 0..256 {
+        for (i, p_row) in p.iter_mut().enumerate() {
+            for (j, p_val) in p_row.iter_mut().enumerate() {
                 let mut sum = 0u8;
                 for k in 0..256 {
                     sum ^= b_inv[i][k] & a[k][j];
                 }
-                p[i][j] = sum;
+                *p_val = sum;
             }
         }
 
@@ -71,8 +75,8 @@ impl LdpcEncoder {
         let mut inv = [[0u8; 256]; 256];
 
         // Identity matrix
-        for i in 0..256 {
-            inv[i][i] = 1;
+        for (i, row) in inv.iter_mut().enumerate() {
+            row[i] = 1;
         }
 
         for col in 0..256 {
