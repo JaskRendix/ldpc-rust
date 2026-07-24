@@ -2,12 +2,9 @@ pub struct SpaDecoderLLR {
     pub m: usize,
     pub n: usize,
     pub max_iter: usize,
-    /// Normalization factor for Min-Sum (typically 0.75). Set to 1.0 for standard unscaled Min-Sum.
     pub scaling_factor: f64,
-    // Sparse representation caches to avoid dense pointer chasing
     row_to_cols: Box<[Vec<usize>; 256]>,
     col_to_rows: Box<[Vec<usize>; 512]>,
-    // Internal message matrices preserved to avoid per-iteration allocations
     rmn: Vec<Vec<f64>>,
     qnm: Vec<Vec<f64>>,
 }
@@ -36,7 +33,7 @@ impl SpaDecoderLLR {
             m,
             n,
             max_iter: 50,
-            scaling_factor: 0.75, // Default optimal scaling for Normalized Min-Sum
+            scaling_factor: 0.75,
             row_to_cols,
             col_to_rows,
             rmn: vec![vec![0.0; n]; m],
@@ -48,13 +45,11 @@ impl SpaDecoderLLR {
         self.max_iter = iters;
     }
 
-    /// Sets the normalization scaling factor alpha for Normalized Min-Sum (NMS).
     pub fn set_scaling_factor(&mut self, alpha: f64) {
         self.scaling_factor = alpha;
     }
 
     pub fn decode(&mut self, llr: &[f64]) -> Vec<u8> {
-        // Initialize qnm with channel LLRs sparsely
         for i in 0..self.m {
             for &j in &self.row_to_cols[i] {
                 self.qnm[i][j] = llr[j];
@@ -66,7 +61,6 @@ impl SpaDecoderLLR {
         let mut mags: Vec<f64> = Vec::with_capacity(8);
 
         for _ in 0..self.max_iter {
-            // Check-node update (Normalized Min-Sum)
             for i in 0..self.m {
                 signs.clear();
                 mags.clear();
@@ -97,12 +91,10 @@ impl SpaDecoderLLR {
                     let sign_j = signs[k];
                     let out_mag = if k == idx_min1 { min2 } else { min1 };
                     let out_sign = global_sign * sign_j;
-                    // Apply the normalization scaling factor here
                     self.rmn[i][j] = out_sign * out_mag * self.scaling_factor;
                 }
             }
 
-            // Variable-node update
             for j in 0..self.n {
                 let mut sum = llr[j];
                 for &i in &self.col_to_rows[j] {
