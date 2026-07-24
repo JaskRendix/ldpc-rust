@@ -1,11 +1,12 @@
 use ldpc_rust::encoder::LDPC_ENCODER;
-use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
 use ldpc_rust::matrices::h_256_512::H_256_512;
+use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
+use rand::rngs::ThreadRng;
 use rand::Rng;
 
 #[test]
 fn test_fuzz_encode_decode_pipeline() {
-    let mut rng = rand::thread_rng();
+    let mut rng = ThreadRng::default();
     let mut decoder = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(30);
 
@@ -21,13 +22,15 @@ fn test_fuzz_encode_decode_pipeline() {
 
         // 2. Transmit through channel with minor bit flips (simulate error within correction radius)
         let mut llrs = vec![0.0f64; 512];
-        for i in 0..512 {
+        for (i, llr) in llrs.iter_mut().enumerate() {
             let mut bit = codeword[i];
+
             // Inject random single-bit error with low probability per trial
             if trial % 10 == 0 && i < 10 {
                 bit ^= 1;
             }
-            llrs[i] = if bit == 0 { 4.0 } else { -4.0 };
+
+            *llr = if bit == 0 { 4.0 } else { -4.0 };
         }
 
         // 3. Decode
