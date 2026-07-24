@@ -52,7 +52,6 @@ fn main() {
         vec![-2.0, -1.0, 0.0, 0.5, 1.0, 1.5, 2.0]
     };
 
-    let h_matrix: Vec<Vec<u8>> = H_256_512.iter().map(|row| row.to_vec()).collect();
     let n = 512;
 
     // Seeded so runs are reproducible - important for confirming a code
@@ -72,7 +71,7 @@ fn main() {
         // its internal state (qnm) from the input LLR before use each
         // call, so reuse across trials is safe and avoids re-cloning
         // h_matrix and reallocating qnm/rmn on every single trial.
-        let mut decoder = SpaDecoderLLR::new(h_matrix.clone());
+        let mut decoder = SpaDecoderLLR::new(&H_256_512);
 
         let max_trials = if smoke { 1 } else { MAX_TRIALS };
 
