@@ -1,10 +1,9 @@
-use std::sync::LazyLock;
 use crate::matrices::h_256_512::H_256_512;
+use std::sync::LazyLock;
 
 /// Global, lazily-initialized CCSDS LDPC encoder.
 /// Computes B^{-1}A only once, on first use.
-pub static LDPC_ENCODER: LazyLock<LdpcEncoder> =
-    LazyLock::new(|| LdpcEncoder::new());
+pub static LDPC_ENCODER: LazyLock<LdpcEncoder> = LazyLock::new(|| LdpcEncoder::new());
 
 pub struct LdpcEncoder {
     /// Parity generator matrix P = B^{-1} A (256 × 256)
