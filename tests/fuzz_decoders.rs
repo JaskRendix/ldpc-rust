@@ -2,7 +2,7 @@ use ldpc_rust::encoder::LDPC_ENCODER;
 use ldpc_rust::matrices::h_256_512::H_256_512;
 use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
 use rand::rngs::ThreadRng;
-use rand::{Rng, RngCore};
+use rand::Rng;
 
 #[test]
 fn test_fuzz_encode_decode_pipeline() {
