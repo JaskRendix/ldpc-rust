@@ -2,8 +2,8 @@ use ldpc_rust::channel::bpsk_awgn_llr;
 use ldpc_rust::matrices::h_256_512::H_256_512;
 use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
 
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 use std::io::{self, Write};
 use std::thread;
 

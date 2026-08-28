@@ -1,7 +1,7 @@
 use axum::{
+    Json, Router,
     http::StatusCode,
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
@@ -65,7 +65,7 @@ async fn decode_bitflip(
             ),
         ));
     }
-    if let Some((idx, &bad)) = payload.cw.iter().enumerate().find(|(_, &b)| b > 1) {
+    if let Some((idx, &bad)) = payload.cw.iter().enumerate().find(|&(_, &b)| b > 1) {
         return Err((
             StatusCode::BAD_REQUEST,
             format!("cw[{idx}] = {bad}, but bits must be 0 or 1"),
@@ -145,7 +145,7 @@ async fn decode_spa(
             format!("cw must have exactly 512 LLR values, got {}", req.cw.len()),
         ));
     }
-    if let Some((idx, &bad)) = req.cw.iter().enumerate().find(|(_, v)| !v.is_finite()) {
+    if let Some((idx, &bad)) = req.cw.iter().enumerate().find(|&(_, v)| !v.is_finite()) {
         return Err((
             StatusCode::BAD_REQUEST,
             format!("cw[{idx}] = {bad}, but LLR values must be finite"),
