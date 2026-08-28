@@ -47,13 +47,13 @@ impl BitArray {
         let (dst_chunks, dst_remainder) = dst[..len].split_at_mut(len & !7usize);
         let (src_chunks, src_remainder) = src[..len].split_at(len & !7usize);
 
-        for (d, s) in dst_chunks
-            .chunks_exact_mut(8)
-            .zip(src_chunks.chunks_exact(8))
-        {
-            let d_word = u64::from_ne_bytes(d.try_into().unwrap());
-            let s_word = u64::from_ne_bytes(s.try_into().unwrap());
-            d.copy_from_slice(&(d_word ^ s_word).to_ne_bytes());
+        let (dst_word_chunks, _) = dst_chunks.as_chunks_mut::<8>();
+        let (src_word_chunks, _) = src_chunks.as_chunks::<8>();
+
+        for (d, s) in dst_word_chunks.iter_mut().zip(src_word_chunks.iter()) {
+            let d_word = u64::from_ne_bytes(*d);
+            let s_word = u64::from_ne_bytes(*s);
+            *d = (d_word ^ s_word).to_ne_bytes();
         }
 
         for (d, s) in dst_remainder.iter_mut().zip(src_remainder.iter()) {
