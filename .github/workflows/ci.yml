@@ -11,7 +11,7 @@ jobs:
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -35,3 +35,19 @@ jobs:
 
       - name: Run tests (no_std)
         run: cargo test --no-default-features --verbose
+
+  docker-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build Docker image (Check only)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          tags: ldpc-server:test
