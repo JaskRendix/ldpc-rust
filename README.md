@@ -12,11 +12,13 @@ The implementation covers:
 * **Soft-decision decoders:** SPA, Min‑Sum, and Normalized Min‑Sum (NMS) in the LLR domain, featuring SIMD-accelerated vectorization for inner loops
 * **Optimized SPA Architecture:** Pre-allocated row buffers in `SpaDecoderLLR::decode` to eliminate per-iteration heap allocations
 * **Const-Generic Matrix Sizes:** Generic `const M: usize, const N: usize` implementations across encoders and decoders supporting alternative CCSDS matrices (128×256 and 256×512) without duplicated logic
+* **Custom Parity-Check Matrix Macro:** Ergonomic `define_custom_matrix!` macro helper allowing researchers to define and test arbitrary $(M, N)$ block codes using the const-generic architecture without modifying library source files
 * **Robust Convergence Metrics:** Structured decode return types exposing iteration counts and convergence status for microservice health tracking
 * **Systematic LDPC Encoder:** Generates valid codewords ($k = 256 \to n = 512$) via lazily computed generator matrices over $\text{GF}(2)$
-* **Zero-Copy Axum Routing:** JSON request handlers mapping directly to fixed-size arrays and slices via Serde
-* **BER simulation tools & Performance Benchmarks:** Custom binary tools and statistical Criterion suites
-* **A test suite** for correctness, safety, and randomized fuzz trials
+* **Zero-Copy Axum Routing:** JSON request handlers mapping directly to fixed-size arrays and slices via Serde, backed by structured telemetry via `tracing`
+* **Flexible CLI Arguments:** Runtime configuration for simulation scripts via `clap` (e.g., trial limits, seeds, smoke modes)
+* **BER Simulation Tools & Performance Benchmarks:** Custom multithreaded simulation binaries, CSV outputs, and statistical Criterion suites
+* **Comprehensive Test Suite:** Includes property-based testing via `proptest` alongside deterministic correctness and fuzz trials
 
 The structure of the CCSDS reference algorithms is preserved.
 
@@ -61,12 +63,14 @@ server_router.rs
 src/bin/
 ber_spa.rs
 bench.rs
+custom_ber_spa.rs
 server.rs
 
 benches/
 ldpc_bench.rs
 
 tests/
+custom_matrix_tests.rs
 encoder_tests.rs
 fuzz_decoders.rs
 ldpc_tests.rs
@@ -93,22 +97,54 @@ let codeword = LDPC_ENCODER.encode(&message); // 512-bit systematic codeword [u 
 
 ---
 
+## Custom Matrices via Macro
+
+Define and evaluate arbitrary block codes seamlessly using the built-in macro interface:
+
+```rust
+use ldpc_rust::define_custom_matrix;
+use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
+
+define_custom_matrix!(
+    pub struct CustomMatrix4x8,
+    const M = 4,
+    const N = 8,
+    [
+        [1, 1, 0, 0, 1, 0, 0, 0],
+        [0, 1, 1, 0, 0, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0, 1, 0],
+        [1, 0, 0, 1, 0, 0, 0, 1],
+    ]
+);
+
+let mut decoder: SpaDecoderLLR<{ CustomMatrix4x8::ROWS }, { CustomMatrix4x8::COLS }> =
+    SpaDecoderLLR::new(&CustomMatrix4x8::DATA);
+```
+
+---
+
 ## Running Tests
 
 ```bash
 cargo test
 ```
 
+Property-based testing suites automatically fuzz encoder-decoder roundtrips across randomized message payloads and noise bursts.
+
 ---
 
 ## BER Simulation
 
-The multithreaded SPA/Min‑Sum decoder generates BER curves concurrently across multiple SNR points for the CCSDS 256×512 code.
-
-Live progress indicators are printed to `stderr` during execution, keeping `stdout` clean for CSV redirection.
+The multithreaded SPA/Min‑Sum decoder generates BER curves concurrently across multiple SNR points. Live progress indicators are printed to `stderr` during execution, keeping `stdout` clean for CSV redirection.
 
 ```bash
-cargo run --release --bin ber_spa > ber_spa_256_512.csv
+cargo run --release --bin ber_spa -- --seed 42 > ber_spa_256_512.csv
+```
+
+For custom matrix simulations:
+
+```bash
+cargo run --release --bin custom_ber_spa > custom_ber_8_16.csv
 ```
 
 ---
@@ -135,7 +171,7 @@ Executes statistical performance tracking for bit-flip trials and SPA LLR decodi
 
 ## Axum Microservice
 
-An HTTP service exposes the decoders for external tools.
+An HTTP service exposes the decoders for external tools with structured request telemetry.
 
 Start:
 
@@ -180,8 +216,6 @@ Run:
 ```bash
 docker run -p 8080:8080 ldpc-server
 ```
-
-This setup uses only the Dockerfile. Prometheus, Grafana, and docker‑compose are excluded.
 
 ---
 
