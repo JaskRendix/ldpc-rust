@@ -5,11 +5,46 @@ pub struct SpaDecoderLLR {
     pub scaling_factor: f64,
     row_to_cols: Box<[Vec<usize>; 256]>,
     col_to_rows: Box<[Vec<usize>; 512]>,
-    rmn: Vec<Vec<f64>>,
-    qnm: Vec<Vec<f64>>,
+    col_to_row_edge_idxs: Box<[Vec<usize>; 512]>,
+    rmn: Box<[Vec<f64>; 256]>,
+    qnm: Box<[Vec<f64>; 256]>,
+    row_signs: Box<[Vec<i8>; 256]>,
+    row_mags: Box<[Vec<f64>; 256]>,
 }
 
 impl SpaDecoderLLR {
+    pub fn row_to_cols(&self) -> &[Vec<usize>] {
+        &self.row_to_cols[..]
+    }
+
+    pub fn col_to_rows(&self) -> &[Vec<usize>] {
+        &self.col_to_rows[..]
+    }
+
+    pub fn col_to_row_edge_idxs(&self) -> &[Vec<usize>] {
+        &self.col_to_row_edge_idxs[..]
+    }
+
+    pub fn rmn(&self) -> &[Vec<f64>] {
+        &self.rmn[..]
+    }
+
+    pub fn qnm(&self) -> &[Vec<f64>] {
+        &self.qnm[..]
+    }
+
+    pub fn row_signs(&self) -> &[Vec<i8>] {
+        &self.row_signs[..]
+    }
+
+    pub fn row_mags(&self) -> &[Vec<f64>] {
+        &self.row_mags[..]
+    }
+
+    pub fn check_syndrome_public(&self, cw: &[u8]) -> bool {
+        self.check_syndrome(cw)
+    }
+
     pub fn new(h: &[[u8; 512]; 256]) -> Self {
         let m = 256;
         let n = 512;
@@ -26,18 +61,43 @@ impl SpaDecoderLLR {
             }
         }
 
-        let row_to_cols = row_to_cols_vec.try_into().unwrap();
-        let col_to_rows = col_to_rows_vec.try_into().unwrap();
+        let row_to_cols: [Vec<usize>; 256] = row_to_cols_vec.try_into().unwrap();
+        let col_to_rows: [Vec<usize>; 512] = col_to_rows_vec.try_into().unwrap();
+
+        let mut col_to_row_edge_idxs_vec = vec![Vec::new(); n];
+        for j in 0..n {
+            for &i in &col_to_rows[j] {
+                let k = row_to_cols[i].iter().position(|&col| col == j).unwrap();
+                col_to_row_edge_idxs_vec[j].push(k);
+            }
+        }
+        let col_to_row_edge_idxs: [Vec<usize>; 512] = col_to_row_edge_idxs_vec.try_into().unwrap();
+
+        let mut rmn_vec = Vec::with_capacity(m);
+        let mut qnm_vec = Vec::with_capacity(m);
+        let mut row_signs_vec = Vec::with_capacity(m);
+        let mut row_mags_vec = Vec::with_capacity(m);
+
+        for cols in row_to_cols.iter() {
+            let deg = cols.len();
+            rmn_vec.push(vec![0.0; deg]);
+            qnm_vec.push(vec![0.0; deg]);
+            row_signs_vec.push(vec![1i8; deg]);
+            row_mags_vec.push(vec![0.0; deg]);
+        }
 
         SpaDecoderLLR {
             m,
             n,
             max_iter: 50,
             scaling_factor: 0.75,
-            row_to_cols,
-            col_to_rows,
-            rmn: vec![vec![0.0; n]; m],
-            qnm: vec![vec![0.0; n]; m],
+            row_to_cols: Box::new(row_to_cols),
+            col_to_rows: Box::new(col_to_rows),
+            col_to_row_edge_idxs: Box::new(col_to_row_edge_idxs),
+            rmn: rmn_vec.into_boxed_slice().try_into().unwrap(),
+            qnm: qnm_vec.into_boxed_slice().try_into().unwrap(),
+            row_signs: row_signs_vec.into_boxed_slice().try_into().unwrap(),
+            row_mags: row_mags_vec.into_boxed_slice().try_into().unwrap(),
         }
     }
 
@@ -51,27 +111,30 @@ impl SpaDecoderLLR {
 
     pub fn decode(&mut self, llr: &[f64]) -> Vec<u8> {
         for i in 0..self.m {
-            for &j in &self.row_to_cols[i] {
-                self.qnm[i][j] = llr[j];
+            for (k, &j) in self.row_to_cols[i].iter().enumerate() {
+                self.qnm[i][k] = llr[j];
             }
         }
 
         let mut hard = vec![0u8; self.n];
-        let mut signs: Vec<f64> = Vec::with_capacity(8);
-        let mut mags: Vec<f64> = Vec::with_capacity(8);
 
         for _ in 0..self.max_iter {
             for i in 0..self.m {
-                signs.clear();
-                mags.clear();
+                let row_len = self.row_to_cols[i].len();
+                let signs = &mut self.row_signs[i];
+                let mags = &mut self.row_mags[i];
+                let q_row = &self.qnm[i];
 
-                for &j in &self.row_to_cols[i] {
-                    let v = self.qnm[i][j];
-                    signs.push(v.signum());
-                    mags.push(v.abs());
+                for k in 0..row_len {
+                    let v = q_row[k];
+                    signs[k] = if v < 0.0 { -1 } else { 1 };
+                    mags[k] = v.abs();
                 }
 
-                let global_sign: f64 = signs.iter().product();
+                let mut global_sign: i8 = 1;
+                for &s in signs.iter() {
+                    global_sign *= s;
+                }
 
                 let mut min1 = f64::INFINITY;
                 let mut min2 = f64::INFINITY;
@@ -87,24 +150,31 @@ impl SpaDecoderLLR {
                     }
                 }
 
-                for (k, &j) in self.row_to_cols[i].iter().enumerate() {
+                let r_row = &mut self.rmn[i];
+                let scale = self.scaling_factor;
+                for k in 0..row_len {
                     let sign_j = signs[k];
                     let out_mag = if k == idx_min1 { min2 } else { min1 };
-                    let out_sign = global_sign * sign_j;
-                    self.rmn[i][j] = out_sign * out_mag * self.scaling_factor;
+                    let out_sign = (global_sign * sign_j) as f64;
+                    r_row[k] = out_sign * out_mag * scale;
                 }
             }
 
             for j in 0..self.n {
                 let mut sum = llr[j];
-                for &i in &self.col_to_rows[j] {
-                    sum += self.rmn[i][j];
+                let check_nodes = &self.col_to_rows[j];
+                let edge_idxs = &self.col_to_row_edge_idxs[j];
+
+                for (idx, &i) in check_nodes.iter().enumerate() {
+                    let k = edge_idxs[idx];
+                    sum += self.rmn[i][k];
                 }
 
                 hard[j] = if sum >= 0.0 { 0 } else { 1 };
 
-                for &i in &self.col_to_rows[j] {
-                    self.qnm[i][j] = sum - self.rmn[i][j];
+                for (idx, &i) in check_nodes.iter().enumerate() {
+                    let k = edge_idxs[idx];
+                    self.qnm[i][k] = sum - self.rmn[i][k];
                 }
             }
 
