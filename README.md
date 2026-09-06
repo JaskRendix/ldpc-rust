@@ -13,12 +13,14 @@ The implementation covers:
 * **Optimized SPA Architecture:** Pre-allocated row buffers in `SpaDecoderLLR::decode` to eliminate per-iteration heap allocations
 * **Const-Generic Matrix Sizes:** Generic `const M: usize, const N: usize` implementations across encoders and decoders supporting alternative CCSDS matrices (128×256 and 256×512) without duplicated logic
 * **Custom Parity-Check Matrix Macro:** Ergonomic `define_custom_matrix!` macro helper allowing researchers to define and test arbitrary $(M, N)$ block codes using the const-generic architecture without modifying library source files
+* **Alternative Wireless Channel Models:** Comprehensive channel simulation module (`src/channel.rs`) supporting Binary Symmetric Channel (BSC) for hard-decision evaluations, alongside soft-decision fading models (Rayleigh, Rician $K$, and Nakagami-m) with perfect CSI, block fading, frequency-selective fading, and burst-noise impairments
+* **High-Level Channel Abstraction:** Ergonomic `Channel` enum supporting dynamic simulation routing (`simulate_llr`) and CLI integration across all benchmark and simulation binaries
 * **Robust Convergence Metrics:** Structured decode return types exposing iteration counts and convergence status for microservice health tracking
 * **Systematic LDPC Encoder:** Generates valid codewords ($k = 256 \to n = 512$) via lazily computed generator matrices over $\text{GF}(2)$
 * **Embedded Flight-Software Readiness (`no_std`):** Core decoders and encoders support `#![no_std]` with `alloc`, allowing bare-metal execution on microcontrollers or flight computers without an operating system
 * **Zero-Copy Axum Routing:** JSON request handlers mapping directly to fixed-size arrays and slices via Serde, backed by structured telemetry via `tracing`
-* **Flexible CLI Arguments:** Runtime configuration for simulation scripts via `clap` (e.g., trial limits, seeds, smoke modes)
-* **BER Simulation Tools & Performance Benchmarks:** Custom multithreaded simulation binaries, CSV outputs, and statistical Criterion suites
+* **Flexible CLI Arguments:** Runtime configuration for simulation scripts via `clap` (e.g., trial limits, seeds, smoke modes, and channel models)
+* **BER Simulation Tools & Performance Benchmarks:** Custom multithreaded simulation binaries, CSV outputs, and statistical Criterion suites measuring LLR computation and decoding overheads
 * **Comprehensive Test Suite:** Includes property-based testing via `proptest` alongside deterministic correctness and fuzz trials
 
 The structure of the CCSDS reference algorithms is preserved.
@@ -152,16 +154,16 @@ Property-based testing suites automatically fuzz encoder-decoder roundtrips acro
 
 ## BER Simulation
 
-The multithreaded SPA/Min‑Sum decoder generates BER curves concurrently across multiple SNR points. Live progress indicators are printed to `stderr` during execution, keeping `stdout` clean for CSV redirection.
+The multithreaded SPA/Min‑Sum decoder generates BER curves concurrently across multiple SNR points and channel models. Live progress indicators are printed to `stderr` during execution, keeping `stdout` clean for CSV redirection.
 
 ```bash
-cargo run --release --bin ber_spa -- --seed 42 > ber_spa_256_512.csv
+cargo run --release --bin ber_spa -- --channel rician --seed 42 > ber_spa_rician.csv
 ```
 
 For custom matrix simulations:
 
 ```bash
-cargo run --release --bin custom_ber_spa > custom_ber_8_16.csv
+cargo run --release --bin custom_ber_spa -- --channel rayleigh > custom_ber_rayleigh.csv
 ```
 
 ---
@@ -182,7 +184,7 @@ Reports total time, average time per trial, and throughput for custom micro-benc
 cargo bench
 ```
 
-Executes statistical performance tracking for bit-flip trials and SPA LLR decoding loops, outputting detailed distribution metrics.
+Executes statistical performance tracking for bit-flip trials, LLR channel generation overheads, and SPA decoding loops, outputting detailed distribution metrics.
 
 ---
 
