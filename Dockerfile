@@ -1,10 +1,11 @@
 # ---- Build stage ----
-FROM rust:1.75-slim AS builder
+FROM rust:slim AS builder
 
 WORKDIR /app
 
 # Copy dependency manifests and source trees
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
+COPY Cargo.lock* ./
 COPY src ./src
 COPY benches ./benches
 COPY tests ./tests
