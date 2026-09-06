@@ -1,4 +1,7 @@
 use crate::bitarray::BitArray;
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
 
 /// Unified LDPC hard‑decision decoder supporting:
 /// - WBF  (Weighted Bit‑Flip)

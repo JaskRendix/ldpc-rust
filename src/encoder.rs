@@ -1,9 +1,13 @@
 use crate::matrices::h_256_512::H_256_512;
-use std::sync::LazyLock;
+
+#[cfg(feature = "std")]
+use std::sync::LazyLock as Lazy;
+
+#[cfg(not(feature = "std"))]
+use spin::LazyLock as Lazy;
 
 /// Global, lazily-initialized CCSDS LDPC encoder for the (512, 256) code.
-pub static LDPC_ENCODER: LazyLock<LdpcEncoder<256, 512>> =
-    LazyLock::new(|| LdpcEncoder::new(&H_256_512));
+pub static LDPC_ENCODER: Lazy<LdpcEncoder<256, 512>> = Lazy::new(|| LdpcEncoder::new(&H_256_512));
 
 pub struct LdpcEncoder<const M: usize, const N: usize> {
     /// Parity generator matrix P (M × M)
@@ -81,7 +85,14 @@ impl<const M: usize, const N: usize> LdpcEncoder<M, N> {
             }
 
             if pivot >= M {
-                panic!("Matrix B is singular at column {col}");
+                #[cfg(feature = "std")]
+                {
+                    std::panic!("Matrix B is singular at column {col}");
+                }
+                #[cfg(not(feature = "std"))]
+                {
+                    core::panic!("Matrix B is singular");
+                }
             }
 
             // Swap rows

@@ -43,7 +43,7 @@ impl BitArray {
 
     #[inline]
     pub fn xor_bytes(dst: &mut [u8], src: &[u8]) {
-        let len = std::cmp::min(dst.len(), src.len());
+        let len = core::cmp::min(dst.len(), src.len());
         let (dst_chunks, dst_remainder) = dst[..len].split_at_mut(len & !7usize);
         let (src_chunks, src_remainder) = src[..len].split_at(len & !7usize);
 

@@ -15,6 +15,7 @@ The implementation covers:
 * **Custom Parity-Check Matrix Macro:** Ergonomic `define_custom_matrix!` macro helper allowing researchers to define and test arbitrary $(M, N)$ block codes using the const-generic architecture without modifying library source files
 * **Robust Convergence Metrics:** Structured decode return types exposing iteration counts and convergence status for microservice health tracking
 * **Systematic LDPC Encoder:** Generates valid codewords ($k = 256 \to n = 512$) via lazily computed generator matrices over $\text{GF}(2)$
+* **Embedded Flight-Software Readiness (`no_std`):** Core decoders and encoders support `#![no_std]` with `alloc`, allowing bare-metal execution on microcontrollers or flight computers without an operating system
 * **Zero-Copy Axum Routing:** JSON request handlers mapping directly to fixed-size arrays and slices via Serde, backed by structured telemetry via `tracing`
 * **Flexible CLI Arguments:** Runtime configuration for simulation scripts via `clap` (e.g., trial limits, seeds, smoke modes)
 * **BER Simulation Tools & Performance Benchmarks:** Custom multithreaded simulation binaries, CSV outputs, and statistical Criterion suites
@@ -42,6 +43,14 @@ Porting the algorithms to Rust consolidates the implementation into a single, sa
 Rust provides deterministic memory safety and predictable performance for LDPC decoding workloads that evaluate thousands of parity‑check equations per iteration.
 
 The SPA, Min‑Sum, and NMS decoders run tight numerical loops without garbage‑collection pauses or undefined behavior.
+
+---
+
+## Embedded Flight-Software Readiness (`no_std`)
+
+The core library is fully compatible with `#![no_std]` (using `alloc`), allowing deterministic decoders and encoders to run directly on bare-metal microcontrollers or space-grade flight computers without an operating system.
+
+When compiled in standard environments, the default `std` feature flag automatically unlocks the Axum web service, CLI tools, and tracing infrastructure.
 
 ---
 
@@ -125,8 +134,16 @@ let mut decoder: SpaDecoderLLR<{ CustomMatrix4x8::ROWS }, { CustomMatrix4x8::COL
 
 ## Running Tests
 
+Run standard tests (including the web server and CLI utilities):
+
 ```bash
 cargo test
+```
+
+Run bare-metal/embedded tests (`no_std` mode):
+
+```bash
+cargo test --no-default-features
 ```
 
 Property-based testing suites automatically fuzz encoder-decoder roundtrips across randomized message payloads and noise bursts.

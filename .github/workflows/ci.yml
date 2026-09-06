@@ -24,8 +24,14 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
         
-      - name: Clippy
+      - name: Clippy (Default / std)
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Clippy (no_std)
+        run: cargo clippy --no-default-features --lib --tests -- -D warnings
         
-      - name: Run tests
+      - name: Run tests (Default / std)
         run: cargo test --all --verbose
+
+      - name: Run tests (no_std)
+        run: cargo test --no-default-features --verbose

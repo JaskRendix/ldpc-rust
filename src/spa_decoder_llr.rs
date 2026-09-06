@@ -1,3 +1,7 @@
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecoderError {
     InvalidInputLength,
