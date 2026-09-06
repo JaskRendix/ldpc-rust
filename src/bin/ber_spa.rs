@@ -1,7 +1,7 @@
 use clap::{Parser, ValueEnum};
 use ldpc_rust::channel::{Channel, simulate_llr};
 use ldpc_rust::matrices::h_256_512::H_256_512;
-use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
+use ldpc_rust::spa_decoder_llr::{Scheduling, SpaDecoderLLR};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use std::io::{self, Write};
@@ -13,6 +13,12 @@ enum ChannelArg {
     Rayleigh,
     Rician,
     Nakagami,
+}
+
+#[derive(ValueEnum, Clone, Copy, Debug)]
+enum SchedulingArg {
+    Flooding,
+    Layered,
 }
 
 #[derive(Parser, Debug)]
@@ -44,6 +50,14 @@ struct Args {
 
     #[arg(long, value_enum, default_value_t = ChannelArg::Awgn, help = "Channel model to simulate")]
     channel: ChannelArg,
+
+    #[arg(
+        long,
+        value_enum,
+        default_value_t = SchedulingArg::Flooding,
+        help = "Decoding scheduling strategy"
+    )]
+    scheduling: SchedulingArg,
 }
 
 fn main() {
@@ -53,12 +67,23 @@ fn main() {
     let min_error_bits = args.min_error_bits;
     let max_trials_limit = args.max_trials;
     let channel_arg = args.channel;
+    let scheduling_arg = args.scheduling;
 
     let channel_name = match channel_arg {
         ChannelArg::Awgn => "AWGN",
         ChannelArg::Rayleigh => "Rayleigh Fading",
         ChannelArg::Rician => "Rician Fading (K=3.0)",
         ChannelArg::Nakagami => "Nakagami-m Fading (m=1.0)",
+    };
+
+    let scheduling_name = match scheduling_arg {
+        SchedulingArg::Flooding => "Flooding",
+        SchedulingArg::Layered => "Layered",
+    };
+
+    let decoder_scheduling = match scheduling_arg {
+        SchedulingArg::Flooding => Scheduling::Flooding,
+        SchedulingArg::Layered => Scheduling::Layered,
     };
 
     let snr_points = if smoke {
@@ -68,7 +93,7 @@ fn main() {
     };
 
     eprintln!(
-        "Simulation [{channel_name}]: seed={base_seed} min_error_bits={min_error_bits} max_trials={max_trials_limit} (multithreaded)"
+        "Simulation [{channel_name} | {scheduling_name}]: seed={base_seed} min_error_bits={min_error_bits} max_trials={max_trials_limit} (multithreaded)"
     );
     println!("snr_db,ber,trials,error_bits,total_bits");
 
@@ -82,6 +107,7 @@ fn main() {
                 s.spawn(move || {
                     let mut rng = StdRng::seed_from_u64(thread_seed);
                     let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
+                    decoder.set_scheduling(decoder_scheduling);
                     let n = 512;
 
                     let channel = match channel_arg {

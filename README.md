@@ -10,6 +10,7 @@ The implementation covers:
 
 * **Hard-decision decoders:** Gallager‑A, Gallager‑B, WBF, MWBF, NWBF
 * **Soft-decision decoders:** SPA, Min‑Sum, and Normalized Min‑Sum (NMS) in the LLR domain, featuring SIMD-accelerated vectorization for inner loops
+* **Layered Decoding Scheduling:** Configurable layered belief propagation (shuffled scheduling) for soft-decision decoders, updating check node rows sequentially within a single iteration to halve the required iteration count for identical error-correction performance
 * **Optimized SPA Architecture:** Pre-allocated row buffers in `SpaDecoderLLR::decode` to eliminate per-iteration heap allocations
 * **Const-Generic Matrix Sizes:** Generic `const M: usize, const N: usize` implementations across encoders and decoders supporting alternative CCSDS matrices (128×256 and 256×512) without duplicated logic
 * **Custom Parity-Check Matrix Macro:** Ergonomic `define_custom_matrix!` macro helper allowing researchers to define and test arbitrary $(M, N)$ block codes using the const-generic architecture without modifying library source files
@@ -19,7 +20,7 @@ The implementation covers:
 * **Systematic LDPC Encoder:** Generates valid codewords ($k = 256 \to n = 512$) via lazily computed generator matrices over $\text{GF}(2)$
 * **Embedded Flight-Software Readiness (`no_std`):** Core decoders and encoders support `#![no_std]` with `alloc`, allowing bare-metal execution on microcontrollers or flight computers without an operating system
 * **Zero-Copy Axum Routing:** JSON request handlers mapping directly to fixed-size arrays and slices via Serde, backed by structured telemetry via `tracing`
-* **Flexible CLI Arguments:** Runtime configuration for simulation scripts via `clap` (e.g., trial limits, seeds, smoke modes, and channel models)
+* **Flexible CLI Arguments:** Runtime configuration for simulation scripts via `clap` (e.g., trial limits, seeds, smoke modes, scheduling strategies, and channel models)
 * **BER Simulation Tools & Performance Benchmarks:** Custom multithreaded simulation binaries, CSV outputs, and statistical Criterion suites measuring LLR computation and decoding overheads
 * **Comprehensive Test Suite:** Includes property-based testing via `proptest` alongside deterministic correctness and fuzz trials
 
@@ -154,16 +155,16 @@ Property-based testing suites automatically fuzz encoder-decoder roundtrips acro
 
 ## BER Simulation
 
-The multithreaded SPA/Min‑Sum decoder generates BER curves concurrently across multiple SNR points and channel models. Live progress indicators are printed to `stderr` during execution, keeping `stdout` clean for CSV redirection.
+The multithreaded SPA/Min‑Sum decoder generates BER curves concurrently across multiple SNR points, channel models, and scheduling strategies (`--scheduling layered` or `flooding`). Live progress indicators are printed to `stderr` during execution, keeping `stdout` clean for CSV redirection.
 
 ```bash
-cargo run --release --bin ber_spa -- --channel rician --seed 42 > ber_spa_rician.csv
+cargo run --release --bin ber_spa -- --channel rician --scheduling layered --seed 42 > ber_spa_rician.csv
 ```
 
 For custom matrix simulations:
 
 ```bash
-cargo run --release --bin custom_ber_spa -- --channel rayleigh > custom_ber_rayleigh.csv
+cargo run --release --bin custom_ber_spa -- --channel rayleigh --scheduling layered > custom_ber_rayleigh.csv
 ```
 
 ---

@@ -1,5 +1,6 @@
+use ldpc_rust::matrices::h_128_256::H_128_256;
 use ldpc_rust::matrices::h_256_512::H_256_512;
-use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
+use ldpc_rust::spa_decoder_llr::{Scheduling, SpaDecoderLLR};
 
 #[test]
 fn test_spa_decoder_all_zero_codeword() {
@@ -239,4 +240,41 @@ fn test_random_llr_stability_sparse() {
 
     assert_eq!(decoded.len(), 512);
     assert!(decoded.iter().all(|&b| b == 0 || b == 1));
+}
+
+#[test]
+fn test_spa_layered_vs_flooding_convergence() {
+    let h = [
+        [1, 1, 0, 0, 1, 0, 0, 0],
+        [0, 1, 1, 0, 0, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0, 1, 0],
+        [1, 0, 0, 1, 0, 0, 0, 1],
+    ];
+
+    let llr = vec![2.5, 3.0, 2.0, 2.5, 3.0, 2.0, 2.5, 3.0];
+
+    let mut dec_flood = SpaDecoderLLR::<4, 8>::new(&h);
+    dec_flood.set_scheduling(Scheduling::Flooding);
+    let res_flood = dec_flood.decode(&llr).unwrap();
+
+    let mut dec_layered = SpaDecoderLLR::<4, 8>::new(&h);
+    dec_layered.set_scheduling(Scheduling::Layered);
+    let res_layered = dec_layered.decode(&llr).unwrap();
+
+    assert!(res_flood.converged);
+    assert!(res_layered.converged);
+    assert_eq!(res_flood.codeword, res_layered.codeword);
+}
+
+#[test]
+fn test_ccsas_128_256_layered_smoke() {
+    let mut decoder = SpaDecoderLLR::<128, 256>::new(&H_128_256);
+    decoder.set_scheduling(Scheduling::Layered);
+    decoder.set_max_iter(15);
+
+    let llr = vec![1.5; 256];
+    let result = decoder.decode(&llr).unwrap();
+
+    assert!(result.converged);
+    assert_eq!(result.codeword.len(), 256);
 }

@@ -7,6 +7,12 @@ pub enum DecoderError {
     InvalidInputLength,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scheduling {
+    Flooding,
+    Layered,
+}
+
 #[derive(Debug, Clone)]
 pub struct DecodeResult {
     pub codeword: Vec<u8>,
@@ -17,6 +23,7 @@ pub struct DecodeResult {
 pub struct SpaDecoderLLR<const M: usize, const N: usize> {
     pub max_iter: usize,
     pub scaling_factor: f64,
+    pub scheduling: Scheduling,
     row_to_cols: Box<[Vec<usize>; M]>,
     col_to_rows: Box<[Vec<usize>; N]>,
     col_to_row_edge_idxs: Box<[Vec<usize>; N]>,
@@ -106,6 +113,7 @@ impl<const M: usize, const N: usize> SpaDecoderLLR<M, N> {
         SpaDecoderLLR {
             max_iter: 50,
             scaling_factor: 0.75,
+            scheduling: Scheduling::Flooding,
             row_to_cols: Box::new(row_to_cols),
             col_to_rows: Box::new(col_to_rows),
             col_to_row_edge_idxs: Box::new(col_to_row_edge_idxs),
@@ -124,11 +132,22 @@ impl<const M: usize, const N: usize> SpaDecoderLLR<M, N> {
         self.scaling_factor = alpha;
     }
 
+    pub fn set_scheduling(&mut self, scheduling: Scheduling) {
+        self.scheduling = scheduling;
+    }
+
     pub fn decode(&mut self, llr: &[f64]) -> Result<DecodeResult, DecoderError> {
         if llr.len() != N {
             return Err(DecoderError::InvalidInputLength);
         }
 
+        match self.scheduling {
+            Scheduling::Flooding => self.decode_flooding(llr),
+            Scheduling::Layered => self.decode_layered(llr),
+        }
+    }
+
+    fn decode_flooding(&mut self, llr: &[f64]) -> Result<DecodeResult, DecoderError> {
         for i in 0..M {
             for (k, &j) in self.row_to_cols[i].iter().enumerate() {
                 self.qnm[i][k] = llr[j];
@@ -198,6 +217,82 @@ impl<const M: usize, const N: usize> SpaDecoderLLR<M, N> {
                     let k = edge_idxs[idx];
                     self.qnm[i][k] = sum - self.rmn[i][k];
                 }
+            }
+
+            if self.check_syndrome(&hard) {
+                converged = true;
+                break;
+            }
+        }
+
+        Ok(DecodeResult {
+            codeword: hard,
+            iterations: final_iter,
+            converged,
+        })
+    }
+
+    fn decode_layered(&mut self, llr: &[f64]) -> Result<DecodeResult, DecoderError> {
+        for row in self.rmn.iter_mut() {
+            row.fill(0.0);
+        }
+
+        let mut current_llr = llr.to_vec();
+        let mut hard = vec![0u8; N];
+        let mut converged = false;
+        let mut final_iter = 0;
+
+        for iter in 0..self.max_iter {
+            final_iter = iter + 1;
+
+            for i in 0..M {
+                let row_len = self.row_to_cols[i].len();
+                let signs = &mut self.row_signs[i];
+                let mags = &mut self.row_mags[i];
+                let r_row = &mut self.rmn[i];
+                let cols = &self.row_to_cols[i];
+
+                for k in 0..row_len {
+                    let j = cols[k];
+                    let q = current_llr[j] - r_row[k];
+                    signs[k] = if q < 0.0 { -1 } else { 1 };
+                    mags[k] = q.abs();
+                }
+
+                let mut global_sign: i8 = 1;
+                for &s in signs.iter() {
+                    global_sign *= s;
+                }
+
+                let mut min1 = f64::INFINITY;
+                let mut min2 = f64::INFINITY;
+                let mut idx_min1 = 0usize;
+
+                for (idx, &v) in mags.iter().enumerate() {
+                    if v < min1 {
+                        min2 = min1;
+                        min1 = v;
+                        idx_min1 = idx;
+                    } else if v < min2 {
+                        min2 = v;
+                    }
+                }
+
+                let scale = self.scaling_factor;
+                for k in 0..row_len {
+                    let j = cols[k];
+                    let sign_j = signs[k];
+                    let out_mag = if k == idx_min1 { min2 } else { min1 };
+                    let out_sign = (global_sign * sign_j) as f64;
+                    let new_r = out_sign * out_mag * scale;
+
+                    current_llr[j] = current_llr[j] - r_row[k] + new_r;
+                    r_row[k] = new_r;
+                }
+            }
+
+            for j in 0..N {
+                hard[j] = if current_llr[j] >= 0.0 { 0 } else { 1 };
             }
 
             if self.check_syndrome(&hard) {

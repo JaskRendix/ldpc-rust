@@ -1,7 +1,7 @@
 use clap::{Parser, ValueEnum};
 use ldpc_rust::channel::{Channel, simulate_llr};
 use ldpc_rust::define_custom_matrix;
-use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
+use ldpc_rust::spa_decoder_llr::{Scheduling, SpaDecoderLLR};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use std::io::{self, Write};
@@ -30,6 +30,12 @@ enum ChannelArg {
     Rayleigh,
     Rician,
     Nakagami,
+}
+
+#[derive(ValueEnum, Clone, Copy, Debug)]
+enum SchedulingArg {
+    Flooding,
+    Layered,
 }
 
 #[derive(Parser, Debug)]
@@ -72,6 +78,14 @@ struct Args {
 
     #[arg(long, value_enum, default_value_t = ChannelArg::Awgn, help = "Channel model to simulate")]
     channel: ChannelArg,
+
+    #[arg(
+        long,
+        value_enum,
+        default_value_t = SchedulingArg::Flooding,
+        help = "Decoding scheduling strategy"
+    )]
+    scheduling: SchedulingArg,
 }
 
 fn main() {
@@ -82,12 +96,23 @@ fn main() {
     let max_trials_limit = args.max_trials;
     let max_iter = args.iterations;
     let channel_arg = args.channel;
+    let scheduling_arg = args.scheduling;
 
     let channel_name = match channel_arg {
         ChannelArg::Awgn => "AWGN",
         ChannelArg::Rayleigh => "Rayleigh Fading",
         ChannelArg::Rician => "Rician Fading (K=3.0)",
         ChannelArg::Nakagami => "Nakagami-m Fading (m=1.0)",
+    };
+
+    let scheduling_name = match scheduling_arg {
+        SchedulingArg::Flooding => "Flooding",
+        SchedulingArg::Layered => "Layered",
+    };
+
+    let decoder_scheduling = match scheduling_arg {
+        SchedulingArg::Flooding => Scheduling::Flooding,
+        SchedulingArg::Layered => Scheduling::Layered,
     };
 
     let snr_points = if smoke {
@@ -97,7 +122,7 @@ fn main() {
     };
 
     eprintln!(
-        "Custom Matrix Simulation [{channel_name}]: code={}x{} seed={base_seed} min_errors={min_error_bits} max_trials={max_trials_limit} max_iter={max_iter} (multithreaded)",
+        "Custom Matrix Simulation [{channel_name} | {scheduling_name}]: code={}x{} seed={base_seed} min_errors={min_error_bits} max_trials={max_trials_limit} max_iter={max_iter} (multithreaded)",
         CustomMatrix8x16::ROWS,
         CustomMatrix8x16::COLS
     );
@@ -117,6 +142,7 @@ fn main() {
                         { CustomMatrix8x16::COLS },
                     > = SpaDecoderLLR::new(&CustomMatrix8x16::DATA);
                     decoder.set_max_iter(max_iter);
+                    decoder.set_scheduling(decoder_scheduling);
                     let n = CustomMatrix8x16::COLS;
 
                     let channel = match channel_arg {
