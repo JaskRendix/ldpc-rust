@@ -39,7 +39,7 @@ fn main() {
 
     let mut llr = vec![0.0f64; n];
     for i in 0..n {
-        llr[i] = simulate_llr(sent_codeword[i], snr_db, channel.clone(), &mut rng);
+        llr[i] = simulate_llr(sent_codeword[i], snr_db, channel, &mut rng);
     }
 
     // Attempt to decode the noisy LLR measurements
