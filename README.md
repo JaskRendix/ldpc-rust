@@ -8,14 +8,15 @@ All decoding operations use fixed‑size arrays, checked indexing, and embedded 
 
 The implementation covers:
 
-* hard‑decision decoders: Gallager‑A, Gallager‑B, WBF, MWBF, NWBF
-* soft‑decision decoders: SPA, Min‑Sum, and Normalized Min‑Sum (NMS) in the LLR domain
-* systematic LDPC encoder for generating valid codewords ($k = 256 \to n = 512$)
-* CCSDS matrices: 128×256 and 256×512
-* BER simulation tools
-* an Axum HTTP microservice
-* benchmarks for hard‑ and soft‑decision decoders
-* a test suite for correctness, safety, and randomized trials
+* **Hard-decision decoders:** Gallager‑A, Gallager‑B, WBF, MWBF, NWBF
+* **Soft-decision decoders:** SPA, Min‑Sum, and Normalized Min‑Sum (NMS) in the LLR domain, featuring SIMD-accelerated vectorization for inner loops
+* **Optimized SPA Architecture:** Pre-allocated row buffers in `SpaDecoderLLR::decode` to eliminate per-iteration heap allocations
+* **Const-Generic Matrix Sizes:** Generic `const M: usize, const N: usize` implementations across encoders and decoders supporting alternative CCSDS matrices (128×256 and 256×512) without duplicated logic
+* **Robust Convergence Metrics:** Structured decode return types exposing iteration counts and convergence status for microservice health tracking
+* **Systematic LDPC Encoder:** Generates valid codewords ($k = 256 \to n = 512$) via lazily computed generator matrices over $\text{GF}(2)$
+* **Zero-Copy Axum Routing:** JSON request handlers mapping directly to fixed-size arrays and slices via Serde
+* **BER simulation tools & Performance Benchmarks:** Custom binary tools and statistical Criterion suites
+* **A test suite** for correctness, safety, and randomized fuzz trials
 
 The structure of the CCSDS reference algorithms is preserved.
 
@@ -44,7 +45,6 @@ The SPA, Min‑Sum, and NMS decoders run tight numerical loops without garbage�
 
 ## Project Layout
 
-
 ```
 src/
 bitarray.rs
@@ -62,6 +62,9 @@ src/bin/
 ber_spa.rs
 bench.rs
 server.rs
+
+benches/
+ldpc_bench.rs
 
 tests/
 encoder_tests.rs
@@ -111,11 +114,21 @@ cargo run --release --bin ber_spa > ber_spa_256_512.csv
 
 ## Benchmarks
 
+### Custom Binary Benchmarks
+
 ```bash
 cargo run --release --bin bench
 ```
 
-Reports total time, average time per trial, and throughput.
+Reports total time, average time per trial, and throughput for custom micro-benchmarks.
+
+### Criterion Statistical Suite
+
+```bash
+cargo bench
+```
+
+Executes statistical performance tracking for bit-flip trials and SPA LLR decoding loops, outputting detailed distribution metrics.
 
 ---
 
@@ -167,9 +180,7 @@ Run:
 docker run -p 8080:8080 ldpc-server
 ```
 
-This setup uses only the Dockerfile.
-
-Prometheus, Grafana, and docker‑compose are excluded.
+This setup uses only the Dockerfile. Prometheus, Grafana, and docker‑compose are excluded.
 
 ---
 
