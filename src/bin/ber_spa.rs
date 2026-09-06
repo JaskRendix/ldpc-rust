@@ -1,12 +1,19 @@
-use clap::Parser;
-use ldpc_rust::channel::bpsk_awgn_llr;
+use clap::{Parser, ValueEnum};
+use ldpc_rust::channel::{Channel, simulate_llr};
 use ldpc_rust::matrices::h_256_512::H_256_512;
 use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
-
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use std::io::{self, Write};
 use std::thread;
+
+#[derive(ValueEnum, Clone, Copy, Debug)]
+enum ChannelArg {
+    Awgn,
+    Rayleigh,
+    Rician,
+    Nakagami,
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "LDPC SPA Bit Error Rate (BER) Simulation")]
@@ -34,6 +41,9 @@ struct Args {
 
     #[arg(long, default_value_t = 200_000, help = "Maximum trials per SNR point")]
     max_trials: usize,
+
+    #[arg(long, value_enum, default_value_t = ChannelArg::Awgn, help = "Channel model to simulate")]
+    channel: ChannelArg,
 }
 
 fn main() {
@@ -42,6 +52,14 @@ fn main() {
     let base_seed = args.seed;
     let min_error_bits = args.min_error_bits;
     let max_trials_limit = args.max_trials;
+    let channel_arg = args.channel;
+
+    let channel_name = match channel_arg {
+        ChannelArg::Awgn => "AWGN",
+        ChannelArg::Rayleigh => "Rayleigh Fading",
+        ChannelArg::Rician => "Rician Fading (K=3.0)",
+        ChannelArg::Nakagami => "Nakagami-m Fading (m=1.0)",
+    };
 
     let snr_points = if smoke {
         vec![0.0]
@@ -50,7 +68,7 @@ fn main() {
     };
 
     eprintln!(
-        "seed={base_seed} min_error_bits={min_error_bits} max_trials={max_trials_limit} (multithreaded)"
+        "Simulation [{channel_name}]: seed={base_seed} min_error_bits={min_error_bits} max_trials={max_trials_limit} (multithreaded)"
     );
     println!("snr_db,ber,trials,error_bits,total_bits");
 
@@ -66,6 +84,13 @@ fn main() {
                     let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
                     let n = 512;
 
+                    let channel = match channel_arg {
+                        ChannelArg::Awgn => Channel::Awgn,
+                        ChannelArg::Rayleigh => Channel::Rayleigh,
+                        ChannelArg::Rician => Channel::Rician { k: 3.0 },
+                        ChannelArg::Nakagami => Channel::Nakagami { m: 1.0 },
+                    };
+
                     let mut total_bits = 0usize;
                     let mut error_bits = 0usize;
                     let mut trials = 0usize;
@@ -75,7 +100,7 @@ fn main() {
                         let cw = vec![0u8; n];
                         let mut llr = vec![0.0f64; n];
                         for i in 0..n {
-                            llr[i] = bpsk_awgn_llr(cw[i], snr_db, &mut rng);
+                            llr[i] = simulate_llr(cw[i], snr_db, channel, &mut rng);
                         }
 
                         let hard = match decoder.decode(&llr) {

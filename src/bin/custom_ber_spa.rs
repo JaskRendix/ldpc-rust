@@ -1,5 +1,5 @@
-use clap::Parser;
-use ldpc_rust::channel::bpsk_awgn_llr;
+use clap::{Parser, ValueEnum};
+use ldpc_rust::channel::{Channel, simulate_llr};
 use ldpc_rust::define_custom_matrix;
 use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
 use rand::SeedableRng;
@@ -23,6 +23,14 @@ define_custom_matrix!(
         [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     ]
 );
+
+#[derive(ValueEnum, Clone, Copy, Debug)]
+enum ChannelArg {
+    Awgn,
+    Rayleigh,
+    Rician,
+    Nakagami,
+}
 
 #[derive(Parser, Debug)]
 #[command(
@@ -61,6 +69,9 @@ struct Args {
         help = "Maximum decoder iterations per trial"
     )]
     iterations: usize,
+
+    #[arg(long, value_enum, default_value_t = ChannelArg::Awgn, help = "Channel model to simulate")]
+    channel: ChannelArg,
 }
 
 fn main() {
@@ -70,6 +81,14 @@ fn main() {
     let min_error_bits = args.min_error_bits;
     let max_trials_limit = args.max_trials;
     let max_iter = args.iterations;
+    let channel_arg = args.channel;
+
+    let channel_name = match channel_arg {
+        ChannelArg::Awgn => "AWGN",
+        ChannelArg::Rayleigh => "Rayleigh Fading",
+        ChannelArg::Rician => "Rician Fading (K=3.0)",
+        ChannelArg::Nakagami => "Nakagami-m Fading (m=1.0)",
+    };
 
     let snr_points = if smoke {
         vec![0.0]
@@ -78,7 +97,7 @@ fn main() {
     };
 
     eprintln!(
-        "Custom Matrix Simulation: code={}x{} seed={base_seed} min_errors={min_error_bits} max_trials={max_trials_limit} max_iter={max_iter} (multithreaded)",
+        "Custom Matrix Simulation [{channel_name}]: code={}x{} seed={base_seed} min_errors={min_error_bits} max_trials={max_trials_limit} max_iter={max_iter} (multithreaded)",
         CustomMatrix8x16::ROWS,
         CustomMatrix8x16::COLS
     );
@@ -100,6 +119,13 @@ fn main() {
                     decoder.set_max_iter(max_iter);
                     let n = CustomMatrix8x16::COLS;
 
+                    let channel = match channel_arg {
+                        ChannelArg::Awgn => Channel::Awgn,
+                        ChannelArg::Rayleigh => Channel::Rayleigh,
+                        ChannelArg::Rician => Channel::Rician { k: 3.0 },
+                        ChannelArg::Nakagami => Channel::Nakagami { m: 1.0 },
+                    };
+
                     let mut total_bits = 0usize;
                     let mut error_bits = 0usize;
                     let mut trials = 0usize;
@@ -109,7 +135,7 @@ fn main() {
                         let cw = vec![0u8; n];
                         let mut llr = vec![0.0f64; n];
                         for i in 0..n {
-                            llr[i] = bpsk_awgn_llr(cw[i], snr_db, &mut rng);
+                            llr[i] = simulate_llr(cw[i], snr_db, channel, &mut rng);
                         }
 
                         let hard = match decoder.decode(&llr) {

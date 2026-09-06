@@ -1,4 +1,4 @@
-use ldpc_rust::channel::bpsk_awgn_llr;
+use ldpc_rust::channel::{Channel, simulate_llr};
 use ldpc_rust::define_custom_matrix;
 use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
 use rand::SeedableRng;
@@ -18,7 +18,9 @@ define_custom_matrix!(
 );
 
 fn main() {
-    println!("Running end-to-end simulation with custom (4, 8) matrix...");
+    println!(
+        "Running end-to-end simulation with custom (4, 8) matrix over Rician fading channel..."
+    );
 
     let n = CustomMatrix4x8::COLS;
     let mut rng = StdRng::seed_from_u64(42);
@@ -31,11 +33,13 @@ fn main() {
     // Assume an all-zero codeword for testing transmission
     let sent_codeword = vec![0u8; n];
 
-    // Simulate BPSK transmission over an AWGN channel at 2.0 dB SNR
-    let snr_db = 2.0;
+    // Select a Rician fading channel model (K-factor = 3.0) via the high-level abstraction
+    let channel = Channel::Rician { k: 3.0 };
+    let snr_db = 3.5;
+
     let mut llr = vec![0.0f64; n];
     for i in 0..n {
-        llr[i] = bpsk_awgn_llr(sent_codeword[i], snr_db, &mut rng);
+        llr[i] = simulate_llr(sent_codeword[i], snr_db, channel.clone(), &mut rng);
     }
 
     // Attempt to decode the noisy LLR measurements

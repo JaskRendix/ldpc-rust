@@ -150,6 +150,7 @@ pub fn burst_noise_channel(
 }
 
 /// High-level channel abstraction for LLR-based simulations.
+#[derive(Debug, Clone, Copy)]
 pub enum Channel {
     Awgn,
     Rayleigh,

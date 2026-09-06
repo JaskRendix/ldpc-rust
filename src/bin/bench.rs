@@ -1,17 +1,22 @@
-use clap::Parser;
-use ldpc_rust::channel::bpsk_awgn_llr;
-use ldpc_rust::matrices::h_256_512::H_256_512;
-
+use clap::{Parser, ValueEnum};
 use ldpc_rust::bitarray::BitArray;
+use ldpc_rust::channel::{Channel, simulate_llr};
 use ldpc_rust::ldpc_decoder::LdpcDecoder;
+use ldpc_rust::matrices::h_256_512::H_256_512;
 use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
-
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
-
 use std::time::Instant;
 
 const SEED: u64 = 0xC0FFEE;
+
+#[derive(ValueEnum, Clone, Copy, Debug)]
+enum ChannelArg {
+    Awgn,
+    Rayleigh,
+    Rician,
+    Nakagami,
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "LDPC Benchmark Harness")]
@@ -35,6 +40,9 @@ struct Args {
 
     #[arg(long, help = "Override trial count for bit-flip and SPA benchmarks")]
     trials: Option<usize>,
+
+    #[arg(long, value_enum, default_value_t = ChannelArg::Awgn, help = "Channel model to simulate")]
+    channel: ChannelArg,
 }
 
 fn main() {
@@ -44,7 +52,13 @@ fn main() {
     println!("----------------------------------------");
 
     benchmark_bitflip(args.smoke, args.iterations, args.trials);
-    benchmark_spa_llr(args.smoke, args.snr, args.iterations, args.trials);
+    benchmark_spa_llr(
+        args.smoke,
+        args.snr,
+        args.iterations,
+        args.trials,
+        args.channel,
+    );
 }
 
 fn benchmark_bitflip(smoke: bool, iterations: usize, custom_trials: Option<usize>) {
@@ -94,16 +108,35 @@ fn benchmark_bitflip(smoke: bool, iterations: usize, custom_trials: Option<usize
     println!("----------------------------------------");
 }
 
-fn benchmark_spa_llr(smoke: bool, snr_db: f64, iterations: usize, custom_trials: Option<usize>) {
-    println!("SPA LLR Benchmark (256x512):");
+fn benchmark_spa_llr(
+    smoke: bool,
+    snr_db: f64,
+    iterations: usize,
+    custom_trials: Option<usize>,
+    channel_arg: ChannelArg,
+) {
+    let channel_name = match channel_arg {
+        ChannelArg::Awgn => "AWGN",
+        ChannelArg::Rayleigh => "Rayleigh Fading",
+        ChannelArg::Rician => "Rician Fading (K=3.0)",
+        ChannelArg::Nakagami => "Nakagami-m Fading (m=1.0)",
+    };
+
+    println!("SPA LLR Benchmark (256x512) over {channel_name}:");
 
     let mut rng = StdRng::seed_from_u64(SEED);
-
     let n = 512;
     let trials = custom_trials.unwrap_or(if smoke { 2 } else { 50 });
 
     let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(iterations);
+
+    let channel = match channel_arg {
+        ChannelArg::Awgn => Channel::Awgn,
+        ChannelArg::Rayleigh => Channel::Rayleigh,
+        ChannelArg::Rician => Channel::Rician { k: 3.0 },
+        ChannelArg::Nakagami => Channel::Nakagami { m: 1.0 },
+    };
 
     let mut converged_count = 0usize;
     let start = Instant::now();
@@ -112,7 +145,7 @@ fn benchmark_spa_llr(smoke: bool, snr_db: f64, iterations: usize, custom_trials:
         let cw = vec![0u8; n];
         let mut llr = vec![0.0f64; n];
         for i in 0..n {
-            llr[i] = bpsk_awgn_llr(cw[i], snr_db, &mut rng);
+            llr[i] = simulate_llr(cw[i], snr_db, channel, &mut rng);
         }
 
         match decoder.decode(&llr) {
