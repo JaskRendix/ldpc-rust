@@ -1,12 +1,28 @@
 use axum::http::StatusCode;
+use clap::Parser;
 use ldpc_rust::server_router::router;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tower_http::timeout::TimeoutLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+#[derive(Parser, Debug)]
+#[command(author, version, about = "LDPC Axum Microservice Server")]
+struct Args {
+    #[arg(long, default_value = "0.0.0.0", help = "Host address to bind to")]
+    host: String,
+
+    #[arg(long, default_value_t = 8080, help = "Port number to listen on")]
+    port: u16,
+
+    #[arg(long, default_value_t = 10, help = "Request timeout in seconds")]
+    timeout_secs: u64,
+}
+
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
+
     // Initialize structured logging subscriber
     tracing_subscriber::registry()
         .with(
@@ -18,10 +34,12 @@ async fn main() {
 
     let app = router().layer(TimeoutLayer::with_status_code(
         StatusCode::GATEWAY_TIMEOUT,
-        Duration::from_secs(10),
+        Duration::from_secs(args.timeout_secs),
     ));
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    let addr: SocketAddr = format!("{}:{}", args.host, args.port)
+        .parse()
+        .expect("invalid host or port configuration");
 
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,

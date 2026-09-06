@@ -1,3 +1,4 @@
+use clap::Parser;
 use ldpc_rust::channel::bpsk_awgn_llr;
 use ldpc_rust::matrices::h_256_512::H_256_512;
 use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
@@ -7,21 +8,40 @@ use rand::rngs::StdRng;
 use std::io::{self, Write};
 use std::thread;
 
-const MIN_ERROR_BITS: usize = 50;
-const MAX_TRIALS: usize = 200_000;
+#[derive(Parser, Debug)]
+#[command(author, version, about = "LDPC SPA Bit Error Rate (BER) Simulation")]
+struct Args {
+    #[arg(
+        long,
+        default_value_t = false,
+        help = "Run a quick smoke test with reduced trials"
+    )]
+    smoke: bool,
 
-fn parse_seed(args: &[String]) -> u64 {
-    args.iter()
-        .position(|a| a == "--seed")
-        .and_then(|i| args.get(i + 1))
-        .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(0xC0FFEE)
+    #[arg(
+        long,
+        default_value_t = 0xC0FFEE,
+        help = "Base RNG seed for simulation"
+    )]
+    seed: u64,
+
+    #[arg(
+        long,
+        default_value_t = 50,
+        help = "Minimum error bits before convergence breakout"
+    )]
+    min_error_bits: usize,
+
+    #[arg(long, default_value_t = 200_000, help = "Maximum trials per SNR point")]
+    max_trials: usize,
 }
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let smoke = args.contains(&"--smoke".to_string());
-    let base_seed = parse_seed(&args);
+    let args = Args::parse();
+    let smoke = args.smoke;
+    let base_seed = args.seed;
+    let min_error_bits = args.min_error_bits;
+    let max_trials_limit = args.max_trials;
 
     let snr_points = if smoke {
         vec![0.0]
@@ -30,7 +50,7 @@ fn main() {
     };
 
     eprintln!(
-        "seed={base_seed} min_error_bits={MIN_ERROR_BITS} max_trials={MAX_TRIALS} (multithreaded)"
+        "seed={base_seed} min_error_bits={min_error_bits} max_trials={max_trials_limit} (multithreaded)"
     );
     println!("snr_db,ber,trials,error_bits,total_bits");
 
@@ -49,7 +69,7 @@ fn main() {
                     let mut total_bits = 0usize;
                     let mut error_bits = 0usize;
                     let mut trials = 0usize;
-                    let max_trials = if smoke { 1 } else { MAX_TRIALS };
+                    let max_trials = if smoke { 1 } else { max_trials_limit };
 
                     while trials < max_trials {
                         let cw = vec![0u8; n];
@@ -73,11 +93,11 @@ fn main() {
 
                         if trials.is_multiple_of(100) && !smoke {
                             let current_ber = error_bits as f64 / total_bits as f64;
-                            eprint!("\r[SNR {snr_db:+.1}dB] Trials: {trials}/{max_trials} | Errors: {error_bits}/{MIN_ERROR_BITS} | BER: {current_ber:.5}   ");
+                            eprint!("\r[SNR {snr_db:+.1}dB] Trials: {trials}/{max_trials} | Errors: {error_bits}/{min_error_bits} | BER: {current_ber:.5}   ");
                             let _ = io::stderr().flush();
                         }
 
-                        if !smoke && error_bits >= MIN_ERROR_BITS {
+                        if !smoke && error_bits >= min_error_bits {
                             break;
                         }
                     }

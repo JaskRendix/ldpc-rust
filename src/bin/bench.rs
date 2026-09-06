@@ -1,3 +1,4 @@
+use clap::Parser;
 use ldpc_rust::channel::bpsk_awgn_llr;
 use ldpc_rust::matrices::h_256_512::H_256_512;
 
@@ -12,25 +13,47 @@ use std::time::Instant;
 
 const SEED: u64 = 0xC0FFEE;
 
+#[derive(Parser, Debug)]
+#[command(author, version, about = "LDPC Benchmark Harness")]
+struct Args {
+    #[arg(
+        long,
+        default_value_t = false,
+        help = "Run a quick smoke test with reduced trials"
+    )]
+    smoke: bool,
+
+    #[arg(
+        long,
+        default_value_t = 0.5,
+        help = "Target SNR in dB for SPA LLR benchmark"
+    )]
+    snr: f64,
+
+    #[arg(long, default_value_t = 20, help = "Max iterations per trial")]
+    iterations: usize,
+
+    #[arg(long, help = "Override trial count for bit-flip and SPA benchmarks")]
+    trials: Option<usize>,
+}
+
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let smoke = args.contains(&"--smoke".to_string());
+    let args = Args::parse();
 
     println!("LDPC Benchmark Harness");
     println!("----------------------------------------");
 
-    benchmark_bitflip(smoke);
-    benchmark_spa_llr(smoke);
+    benchmark_bitflip(args.smoke, args.iterations, args.trials);
+    benchmark_spa_llr(args.smoke, args.snr, args.iterations, args.trials);
 }
 
-fn benchmark_bitflip(smoke: bool) {
+fn benchmark_bitflip(smoke: bool, iterations: usize, custom_trials: Option<usize>) {
     println!("Bit-Flip Benchmark (256x512):");
 
     let decoder: LdpcDecoder<256, 512> = LdpcDecoder::new(&H_256_512);
     let mut rng = StdRng::seed_from_u64(SEED);
 
-    let iterations = 20;
-    let trials = if smoke { 2 } else { 200 };
+    let trials = custom_trials.unwrap_or(if smoke { 2 } else { 200 });
     let error_bits = 3;
 
     let mut converged_count = 0usize;
@@ -71,15 +94,13 @@ fn benchmark_bitflip(smoke: bool) {
     println!("----------------------------------------");
 }
 
-fn benchmark_spa_llr(smoke: bool) {
+fn benchmark_spa_llr(smoke: bool, snr_db: f64, iterations: usize, custom_trials: Option<usize>) {
     println!("SPA LLR Benchmark (256x512):");
 
     let mut rng = StdRng::seed_from_u64(SEED);
 
     let n = 512;
-    let iterations = 20;
-    let trials = if smoke { 2 } else { 50 };
-    let snr_db = 0.5;
+    let trials = custom_trials.unwrap_or(if smoke { 2 } else { 50 });
 
     let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(iterations);
