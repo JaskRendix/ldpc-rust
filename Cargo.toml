@@ -14,6 +14,13 @@ rand = "0.10"
 rand_distr = "0.6"
 tower-http = { version = "0.7", features = ["timeout"] }
 
+[dev-dependencies]
+criterion = "0.8"
+
 [[bin]]
 name = "bench"
 path = "src/bin/bench.rs"
+
+[[bench]]
+name = "ldpc_bench"
+harness = false
