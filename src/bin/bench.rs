@@ -26,7 +26,7 @@ fn main() {
 fn benchmark_bitflip(smoke: bool) {
     println!("Bit-Flip Benchmark (256x512):");
 
-    let decoder = LdpcDecoder::new(&H_256_512);
+    let decoder: LdpcDecoder<256, 512> = LdpcDecoder::new(&H_256_512);
     let mut rng = StdRng::seed_from_u64(SEED);
 
     let iterations = 20;
@@ -81,7 +81,7 @@ fn benchmark_spa_llr(smoke: bool) {
     let trials = if smoke { 2 } else { 50 };
     let snr_db = 0.5;
 
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(iterations);
 
     let mut converged_count = 0usize;

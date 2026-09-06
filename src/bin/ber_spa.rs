@@ -43,7 +43,7 @@ fn main() {
 
                 s.spawn(move || {
                     let mut rng = StdRng::seed_from_u64(thread_seed);
-                    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+                    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
                     let n = 512;
 
                     let mut total_bits = 0usize;

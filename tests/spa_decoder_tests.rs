@@ -3,7 +3,7 @@ use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
 
 #[test]
 fn test_spa_decoder_all_zero_codeword() {
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(20);
 
     let llrs = vec![5.0; 512];
@@ -15,7 +15,7 @@ fn test_spa_decoder_all_zero_codeword() {
 
 #[test]
 fn test_spa_decoder_single_error_recovery() {
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(30);
 
     let mut llrs = vec![4.0; 512];
@@ -48,11 +48,11 @@ fn test_spa_decoder_single_error_recovery() {
 
 #[test]
 fn test_spa_decoder_scaling_factor_variations() {
-    let mut decoder_nms = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder_nms: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder_nms.set_scaling_factor(0.75);
     decoder_nms.set_max_iter(10);
 
-    let mut decoder_ms = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder_ms: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder_ms.set_scaling_factor(1.0);
     decoder_ms.set_max_iter(10);
 
@@ -67,7 +67,7 @@ fn test_spa_decoder_scaling_factor_variations() {
 
 #[test]
 fn test_spa_decoder_preserves_dimensions() {
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     let llrs = vec![1.0; 512];
 
     let decoded = decoder.decode(&llrs);
@@ -76,7 +76,7 @@ fn test_spa_decoder_preserves_dimensions() {
 
 #[test]
 fn test_spa_decoder_noisy_channel_zero_llrs() {
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(5);
 
     let llrs = vec![0.0; 512];
@@ -87,7 +87,7 @@ fn test_spa_decoder_noisy_channel_zero_llrs() {
 
 #[test]
 fn test_spa_decoder_zero_iterations() {
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(0);
 
     let llrs = vec![2.0; 512];
@@ -99,7 +99,7 @@ fn test_spa_decoder_zero_iterations() {
 
 #[test]
 fn test_spa_decoder_extreme_scaling_factors() {
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_scaling_factor(0.0);
     decoder.set_max_iter(10);
 
@@ -111,9 +111,9 @@ fn test_spa_decoder_extreme_scaling_factors() {
 
 #[test]
 fn test_edge_alignment_sparse() {
-    let decoder = SpaDecoderLLR::new(&H_256_512);
+    let decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
 
-    for j in 0..decoder.n {
+    for j in 0..512 {
         let check_nodes = &decoder.col_to_rows()[j];
         let edge_idxs = &decoder.col_to_row_edge_idxs()[j];
 
@@ -138,9 +138,9 @@ fn test_edge_alignment_sparse() {
 
 #[test]
 fn test_sparse_message_dimensions() {
-    let decoder = SpaDecoderLLR::new(&H_256_512);
+    let decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
 
-    for i in 0..decoder.m {
+    for i in 0..256 {
         let deg = decoder.row_to_cols()[i].len();
 
         assert_eq!(decoder.rmn()[i].len(), deg);
@@ -152,9 +152,9 @@ fn test_sparse_message_dimensions() {
 
 #[test]
 fn test_sign_mag_initialization() {
-    let decoder = SpaDecoderLLR::new(&H_256_512);
+    let decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
 
-    for i in 0..decoder.m {
+    for i in 0..256 {
         assert!(decoder.row_signs()[i].iter().all(|&s| s == 1));
         assert!(decoder.row_mags()[i].iter().all(|&m| m == 0.0));
     }
@@ -162,7 +162,7 @@ fn test_sign_mag_initialization() {
 
 #[test]
 fn test_zero_iteration_behavior_sparse() {
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(0);
 
     let llrs = vec![2.0; 512];
@@ -170,11 +170,11 @@ fn test_zero_iteration_behavior_sparse() {
 
     assert!(decoded.iter().all(|&b| b == 0));
 
-    for i in 0..decoder.m {
+    for i in 0..256 {
         assert!(decoder.rmn()[i].iter().all(|&v| v == 0.0));
     }
 
-    for i in 0..decoder.m {
+    for i in 0..256 {
         for (k, &j) in decoder.row_to_cols()[i].iter().enumerate() {
             assert_eq!(decoder.qnm()[i][k], llrs[j]);
         }
@@ -183,20 +183,19 @@ fn test_zero_iteration_behavior_sparse() {
 
 #[test]
 fn test_variable_node_update_sparse() {
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(1);
 
     let llrs = vec![1.0; 512];
     let _decoded = decoder.decode(&llrs);
 
-    for (j, &llr_j) in llrs.iter().enumerate().take(decoder.n) {
+    for (j, &llr_j) in llrs.iter().enumerate().take(512) {
         let check_nodes = &decoder.col_to_rows()[j];
         let edge_idxs = &decoder.col_to_row_edge_idxs()[j];
 
         for (idx, &i) in check_nodes.iter().enumerate() {
             let k = edge_idxs[idx];
 
-            // Compute sum for this variable node
             let mut sum = llr_j;
             for (idx2, &i2) in check_nodes.iter().enumerate() {
                 let k2 = edge_idxs[idx2];
@@ -215,7 +214,7 @@ fn test_variable_node_update_sparse() {
 
 #[test]
 fn test_syndrome_check_sparse() {
-    let decoder = SpaDecoderLLR::new(&H_256_512);
+    let decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
 
     let cw = vec![0u8; 512];
     assert!(decoder.check_syndrome_public(&cw));
@@ -227,13 +226,12 @@ fn test_syndrome_check_sparse() {
 
 #[test]
 fn test_random_llr_stability_sparse() {
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
 
     let llrs: Vec<f64> = (0..512)
         .map(|_| {
-            // rand::random::<u32>() is ALWAYS available
             let x = rand::random::<u32>() as f64 / (u32::MAX as f64);
-            -5.0 + x * 10.0 // scale to [-5, 5]
+            -5.0 + x * 10.0
         })
         .collect();
 

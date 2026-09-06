@@ -1,18 +1,16 @@
-pub struct SpaDecoderLLR {
-    pub m: usize,
-    pub n: usize,
+pub struct SpaDecoderLLR<const M: usize, const N: usize> {
     pub max_iter: usize,
     pub scaling_factor: f64,
-    row_to_cols: Box<[Vec<usize>; 256]>,
-    col_to_rows: Box<[Vec<usize>; 512]>,
-    col_to_row_edge_idxs: Box<[Vec<usize>; 512]>,
-    rmn: Box<[Vec<f64>; 256]>,
-    qnm: Box<[Vec<f64>; 256]>,
-    row_signs: Box<[Vec<i8>; 256]>,
-    row_mags: Box<[Vec<f64>; 256]>,
+    row_to_cols: Box<[Vec<usize>; M]>,
+    col_to_rows: Box<[Vec<usize>; N]>,
+    col_to_row_edge_idxs: Box<[Vec<usize>; N]>,
+    rmn: Box<[Vec<f64>; M]>,
+    qnm: Box<[Vec<f64>; M]>,
+    row_signs: Box<[Vec<i8>; M]>,
+    row_mags: Box<[Vec<f64>; M]>,
 }
 
-impl SpaDecoderLLR {
+impl<const M: usize, const N: usize> SpaDecoderLLR<M, N> {
     pub fn row_to_cols(&self) -> &[Vec<usize>] {
         &self.row_to_cols[..]
     }
@@ -45,15 +43,12 @@ impl SpaDecoderLLR {
         self.check_syndrome(cw)
     }
 
-    pub fn new(h: &[[u8; 512]; 256]) -> Self {
-        let m = 256;
-        let n = 512;
+    pub fn new(h: &[[u8; N]; M]) -> Self {
+        let mut row_to_cols_vec = vec![Vec::new(); M];
+        let mut col_to_rows_vec = vec![Vec::new(); N];
 
-        let mut row_to_cols_vec = vec![Vec::new(); m];
-        let mut col_to_rows_vec = vec![Vec::new(); n];
-
-        for i in 0..m {
-            for j in 0..n {
+        for i in 0..M {
+            for j in 0..N {
                 if h[i][j] == 1 {
                     row_to_cols_vec[i].push(j);
                     col_to_rows_vec[j].push(i);
@@ -61,22 +56,28 @@ impl SpaDecoderLLR {
             }
         }
 
-        let row_to_cols: [Vec<usize>; 256] = row_to_cols_vec.try_into().unwrap();
-        let col_to_rows: [Vec<usize>; 512] = col_to_rows_vec.try_into().unwrap();
+        let row_to_cols: [Vec<usize>; M] = row_to_cols_vec
+            .try_into()
+            .unwrap_or_else(|_| panic!("Failed to convert row_to_cols vector to array"));
+        let col_to_rows: [Vec<usize>; N] = col_to_rows_vec
+            .try_into()
+            .unwrap_or_else(|_| panic!("Failed to convert col_to_rows vector to array"));
 
-        let mut col_to_row_edge_idxs_vec = vec![Vec::new(); n];
-        for j in 0..n {
+        let mut col_to_row_edge_idxs_vec = vec![Vec::new(); N];
+        for j in 0..N {
             for &i in &col_to_rows[j] {
                 let k = row_to_cols[i].iter().position(|&col| col == j).unwrap();
                 col_to_row_edge_idxs_vec[j].push(k);
             }
         }
-        let col_to_row_edge_idxs: [Vec<usize>; 512] = col_to_row_edge_idxs_vec.try_into().unwrap();
+        let col_to_row_edge_idxs: [Vec<usize>; N] = col_to_row_edge_idxs_vec
+            .try_into()
+            .unwrap_or_else(|_| panic!("Failed to convert col_to_row_edge_idxs vector to array"));
 
-        let mut rmn_vec = Vec::with_capacity(m);
-        let mut qnm_vec = Vec::with_capacity(m);
-        let mut row_signs_vec = Vec::with_capacity(m);
-        let mut row_mags_vec = Vec::with_capacity(m);
+        let mut rmn_vec = Vec::with_capacity(M);
+        let mut qnm_vec = Vec::with_capacity(M);
+        let mut row_signs_vec = Vec::with_capacity(M);
+        let mut row_mags_vec = Vec::with_capacity(M);
 
         for cols in row_to_cols.iter() {
             let deg = cols.len();
@@ -87,8 +88,6 @@ impl SpaDecoderLLR {
         }
 
         SpaDecoderLLR {
-            m,
-            n,
             max_iter: 50,
             scaling_factor: 0.75,
             row_to_cols: Box::new(row_to_cols),
@@ -110,16 +109,17 @@ impl SpaDecoderLLR {
     }
 
     pub fn decode(&mut self, llr: &[f64]) -> Vec<u8> {
-        for i in 0..self.m {
+        debug_assert_eq!(llr.len(), N);
+        for i in 0..M {
             for (k, &j) in self.row_to_cols[i].iter().enumerate() {
                 self.qnm[i][k] = llr[j];
             }
         }
 
-        let mut hard = vec![0u8; self.n];
+        let mut hard = vec![0u8; N];
 
         for _ in 0..self.max_iter {
-            for i in 0..self.m {
+            for i in 0..M {
                 let row_len = self.row_to_cols[i].len();
                 let signs = &mut self.row_signs[i];
                 let mags = &mut self.row_mags[i];
@@ -160,7 +160,7 @@ impl SpaDecoderLLR {
                 }
             }
 
-            for j in 0..self.n {
+            for j in 0..N {
                 let mut sum = llr[j];
                 let check_nodes = &self.col_to_rows[j];
                 let edge_idxs = &self.col_to_row_edge_idxs[j];
@@ -187,7 +187,7 @@ impl SpaDecoderLLR {
     }
 
     fn check_syndrome(&self, cw: &[u8]) -> bool {
-        for i in 0..self.m {
+        for i in 0..M {
             let mut sum = 0u8;
             for &j in &self.row_to_cols[i] {
                 sum ^= cw[j];

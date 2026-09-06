@@ -6,7 +6,7 @@ use rand::rngs::ThreadRng;
 
 /// Helper: compute syndrome using existing decoder parity function.
 fn syndrome_is_zero(codeword: &[u8; 512]) -> bool {
-    let decoder = LdpcDecoder::new(&H_256_512);
+    let decoder: LdpcDecoder<256, 512> = LdpcDecoder::new(&H_256_512);
 
     let mut cw_bytes = [0u8; 64];
     for (i, &bit) in codeword.iter().enumerate() {
@@ -116,9 +116,43 @@ fn test_encode_decode_roundtrip_spa() {
         llrs[i] = if bit == 0 { 5.0 } else { -5.0 };
     }
 
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(30);
 
     let decoded = decoder.decode(&llrs);
     assert_eq!(decoded[..256], msg);
+}
+
+#[test]
+fn test_hard_decision_decoders_roundtrip() {
+    use ldpc_rust::bitarray::BitArray;
+
+    let mut msg = [0u8; 256];
+    msg[5] = 1;
+    msg[100] = 1;
+    let cw = LDPC_ENCODER.encode(&msg);
+
+    // Pack into 64 bytes for hard-decision decoders
+    let mut cw_bytes = [0u8; 64];
+    for (i, &bit) in cw.iter().enumerate() {
+        if bit == 1 {
+            BitArray::xor_bit(&mut cw_bytes, i);
+        }
+    }
+
+    let decoder: LdpcDecoder<256, 512> = LdpcDecoder::new(&H_256_512);
+    assert!(decoder.iterate_wbf(&mut cw_bytes));
+}
+
+#[test]
+fn test_spa_syndrome_validation() {
+    use ldpc_rust::spa_decoder_llr::SpaDecoderLLR;
+
+    let decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
+    let valid_cw = vec![0u8; 512];
+    assert!(decoder.check_syndrome_public(&valid_cw));
+
+    let mut invalid_cw = vec![0u8; 512];
+    invalid_cw[0] = 1;
+    assert!(!decoder.check_syndrome_public(&invalid_cw));
 }

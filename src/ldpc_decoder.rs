@@ -1,5 +1,4 @@
 use crate::bitarray::BitArray;
-use crate::matrices::h_256_512::H_256_512;
 
 /// Unified LDPC hard‑decision decoder supporting:
 /// - WBF  (Weighted Bit‑Flip)
@@ -8,27 +7,27 @@ use crate::matrices::h_256_512::H_256_512;
 /// - Gallager‑A
 /// - Gallager‑B
 ///
-/// Codewords `cw` are expected to be packed bit arrays of 64 bytes (512 bits).
-pub struct LdpcDecoder {
+/// Codewords `cw` are expected to be packed bit arrays of length `N / 8` bytes.
+pub struct LdpcDecoder<const M: usize, const N: usize> {
     pub max_iter: usize,
     pub gallager_b_threshold: u8,
-    row_to_cols: Box<[Vec<usize>; 256]>,
-    col_to_rows: Box<[Vec<usize>; 512]>,
-    check_weights_fixed: Box<[u32; 256]>,
-    col_degrees: Box<[u32; 512]>,
+    row_to_cols: Box<[Vec<usize>; M]>,
+    col_to_rows: Box<[Vec<usize>; N]>,
+    check_weights_fixed: Box<[u32; M]>,
+    col_degrees: Box<[u32; N]>,
 }
 
-impl LdpcDecoder {
-    pub fn new(_h: &[[u8; 512]; 256]) -> Self {
-        let mut row_to_cols_vec = vec![Vec::new(); 256];
-        let mut col_to_rows_vec = vec![Vec::new(); 512];
-        let mut check_weights_fixed = [0u32; 256];
-        let mut col_degrees = [0u32; 512];
+impl<const M: usize, const N: usize> LdpcDecoder<M, N> {
+    pub fn new(h: &[[u8; N]; M]) -> Self {
+        let mut row_to_cols_vec = vec![Vec::new(); M];
+        let mut col_to_rows_vec = vec![Vec::new(); N];
+        let mut check_weights_fixed = vec![0u32; M];
+        let mut col_degrees = vec![0u32; N];
 
-        for (i, row) in row_to_cols_vec.iter_mut().enumerate().take(256) {
+        for (i, row) in row_to_cols_vec.iter_mut().enumerate().take(M) {
             let mut deg = 0;
-            for j in 0..512 {
-                if H_256_512[i][j] == 1 {
+            for j in 0..N {
+                if h[i][j] == 1 {
                     row.push(j);
                     col_to_rows_vec[j].push(i);
                     deg += 1;
@@ -38,24 +37,30 @@ impl LdpcDecoder {
             check_weights_fixed[i] = 65536 / safe_deg;
         }
 
-        for (j, col) in col_to_rows_vec.iter().enumerate().take(512) {
+        for (j, col) in col_to_rows_vec.iter().enumerate().take(N) {
             col_degrees[j] = col.len() as u32;
         }
 
-        let row_to_cols_array: [Vec<usize>; 256] = row_to_cols_vec
+        let row_to_cols_array: [Vec<usize>; M] = row_to_cols_vec
             .try_into()
             .unwrap_or_else(|_| panic!("Failed to convert row_to_cols vector to array"));
-        let col_to_rows_array: [Vec<usize>; 512] = col_to_rows_vec
+        let col_to_rows_array: [Vec<usize>; N] = col_to_rows_vec
             .try_into()
             .unwrap_or_else(|_| panic!("Failed to convert col_to_rows vector to array"));
+        let check_weights_fixed_array: [u32; M] = check_weights_fixed
+            .try_into()
+            .unwrap_or_else(|_| panic!("Failed to convert check_weights_fixed vector to array"));
+        let col_degrees_array: [u32; N] = col_degrees
+            .try_into()
+            .unwrap_or_else(|_| panic!("Failed to convert col_degrees vector to array"));
 
         Self {
             max_iter: 50,
             gallager_b_threshold: 2,
             row_to_cols: Box::new(row_to_cols_array),
             col_to_rows: Box::new(col_to_rows_array),
-            check_weights_fixed: Box::new(check_weights_fixed),
-            col_degrees: Box::new(col_degrees),
+            check_weights_fixed: Box::new(check_weights_fixed_array),
+            col_degrees: Box::new(col_degrees_array),
         }
     }
 
@@ -71,12 +76,13 @@ impl LdpcDecoder {
         self.max_iter = it;
     }
 
-    pub fn iterate_bitflip(&self, cw: &mut [u8; 64]) -> bool {
+    pub fn iterate_bitflip(&self, cw: &mut [u8]) -> bool {
         self.iterate_wbf(cw)
     }
 
     /// Compute syndrome using chunk-optimized dot products where possible.
-    pub fn get_parity(&self, cw: &[u8; 64], sn: &mut [u8; 256]) -> bool {
+    pub fn get_parity(&self, cw: &[u8], sn: &mut [u8; M]) -> bool {
+        debug_assert_eq!(cw.len() * 8, N);
         let mut valid = true;
 
         for (i, row) in self.row_to_cols.iter().enumerate() {
@@ -93,7 +99,7 @@ impl LdpcDecoder {
         valid
     }
 
-    pub fn get_score(&self, sn: &[u8; 256], en: &mut [u8; 512]) {
+    pub fn get_score(&self, sn: &[u8; M], en: &mut [u8; N]) {
         for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut score = 0u8;
             for &i in col {
@@ -105,13 +111,14 @@ impl LdpcDecoder {
         }
     }
 
-    pub fn iterate_gallager_a(&self, cw: &mut [u8; 64]) -> bool {
-        let mut sn = [0u8; 256];
+    pub fn iterate_gallager_a(&self, cw: &mut [u8]) -> bool {
+        debug_assert_eq!(cw.len() * 8, N);
+        let mut sn = vec![0u8; M].try_into().unwrap();
         if self.get_parity(cw, &mut sn) {
             return true;
         }
 
-        let mut flip = [false; 512];
+        let mut flip = vec![false; N];
 
         for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut votes = 0u8;
@@ -137,13 +144,14 @@ impl LdpcDecoder {
         false
     }
 
-    pub fn iterate_gallager_b(&self, cw: &mut [u8; 64]) -> bool {
-        let mut sn = [0u8; 256];
+    pub fn iterate_gallager_b(&self, cw: &mut [u8]) -> bool {
+        debug_assert_eq!(cw.len() * 8, N);
+        let mut sn = vec![0u8; M].try_into().unwrap();
         if self.get_parity(cw, &mut sn) {
             return true;
         }
 
-        let mut flip = [false; 512];
+        let mut flip = vec![false; N];
 
         for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut votes = 0u8;
@@ -169,13 +177,14 @@ impl LdpcDecoder {
         false
     }
 
-    pub fn iterate_wbf(&self, cw: &mut [u8; 64]) -> bool {
-        let mut sn = [0u8; 256];
+    pub fn iterate_wbf(&self, cw: &mut [u8]) -> bool {
+        debug_assert_eq!(cw.len() * 8, N);
+        let mut sn = vec![0u8; M].try_into().unwrap();
         if self.get_parity(cw, &mut sn) {
             return true;
         }
 
-        let mut scores = [0u32; 512];
+        let mut scores = vec![0u32; N];
         for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut s = 0u32;
             for &i in col {
@@ -203,13 +212,14 @@ impl LdpcDecoder {
         false
     }
 
-    pub fn iterate_mwbf(&self, cw: &mut [u8; 64]) -> bool {
-        let mut sn = [0u8; 256];
+    pub fn iterate_mwbf(&self, cw: &mut [u8]) -> bool {
+        debug_assert_eq!(cw.len() * 8, N);
+        let mut sn = vec![0u8; M].try_into().unwrap();
         if self.get_parity(cw, &mut sn) {
             return true;
         }
 
-        let mut scores = [0u32; 512];
+        let mut scores = vec![0u32; N];
         for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut s = 0u32;
             for &i in col {
@@ -238,13 +248,14 @@ impl LdpcDecoder {
         false
     }
 
-    pub fn iterate_nwbf(&self, cw: &mut [u8; 64]) -> bool {
-        let mut sn = [0u8; 256];
+    pub fn iterate_nwbf(&self, cw: &mut [u8]) -> bool {
+        debug_assert_eq!(cw.len() * 8, N);
+        let mut sn = vec![0u8; M].try_into().unwrap();
         if self.get_parity(cw, &mut sn) {
             return true;
         }
 
-        let mut scores = [0u32; 512];
+        let mut scores = vec![0u32; N];
         for (j, col) in self.col_to_rows.iter().enumerate() {
             let mut votes = 0u32;
             for &i in col {
