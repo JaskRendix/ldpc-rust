@@ -371,3 +371,26 @@ async fn test_spa_scaling_factor_nan() {
     let response = app.oneshot(request).await.unwrap();
     assert!(response.status().is_client_error());
 }
+
+#[tokio::test]
+async fn test_timeout_layer_integration() {
+    use std::time::Duration;
+    use tower_http::timeout::TimeoutLayer;
+
+    let app = ldpc_rust::server_router::router().layer(TimeoutLayer::with_status_code(
+        StatusCode::GATEWAY_TIMEOUT,
+        Duration::from_secs(10),
+    ));
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+}

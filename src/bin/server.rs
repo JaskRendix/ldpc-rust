@@ -3,13 +3,19 @@ use ldpc_rust::server_router::router;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tower_http::timeout::TimeoutLayer;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
-    // Hard wall-clock cap per request so a stuck/slow decode (e.g. an SPA
-    // request sitting at MAX_ITERATIONS) can't tie up a worker
-    // indefinitely. Tune based on real p99 latency once you have
-    // production numbers - this is a defensive ceiling, not a target.
+    // Initialize structured logging subscriber
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "ldpc_rust=info,tower_http=info".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
     let app = router().layer(TimeoutLayer::with_status_code(
         StatusCode::GATEWAY_TIMEOUT,
         Duration::from_secs(10),
@@ -25,19 +31,17 @@ async fn main() {
         }
     };
 
-    println!("LDPC microservice running on {addr}");
+    tracing::info!("LDPC microservice running on {}", addr);
 
     if let Err(e) = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
     {
-        eprintln!("server error: {e}");
+        tracing::error!("server error: {e}");
         std::process::exit(1);
     }
 }
 
-/// Waits for Ctrl+C or SIGTERM (the signal Docker sends on `docker stop`)
-/// so in-flight requests can finish instead of being dropped mid-response.
 async fn shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c()
@@ -61,5 +65,5 @@ async fn shutdown_signal() {
         _ = terminate => {},
     }
 
-    println!("shutdown signal received, draining in-flight requests");
+    tracing::info!("shutdown signal received, draining in-flight requests");
 }

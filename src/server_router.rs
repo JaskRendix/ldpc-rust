@@ -36,12 +36,6 @@ pub async fn health() -> &'static str {
     "ok"
 }
 
-//
-// ------------------------------------------------------------
-// BIT-FLIP (hard decision, FULL 512 bits)
-// ------------------------------------------------------------
-//
-
 #[derive(Deserialize)]
 pub struct DecodeRequest {
     #[serde(with = "serde_arrays")]
@@ -93,9 +87,20 @@ async fn decode_bitflip(
     // Unpack using an efficient collector mapping over the fixed range
     let unpacked_cw: Vec<u8> = (0..512).map(|j| BitArray::get_bit(&cw, j)).collect();
 
+    let duration = start.elapsed();
     DECODE_COUNT.fetch_add(1, Ordering::Relaxed);
-    LAST_LATENCY_US.store(start.elapsed().as_micros() as u64, Ordering::Relaxed);
+    LAST_LATENCY_US.store(duration.as_micros() as u64, Ordering::Relaxed);
     LAST_ITERATIONS.store(payload.iterations as u64, Ordering::Relaxed);
+
+    tracing::info!(
+        target: "ldpc_decoder",
+        algorithm = "bitflip",
+        duration_micros = duration.as_micros(),
+        iterations = payload.iterations,
+        valid = valid,
+        syndrome_weight = syndrome_weight,
+        "bit-flip decode completed"
+    );
 
     Ok(Json(DecodeResponse {
         valid,
@@ -103,12 +108,6 @@ async fn decode_bitflip(
         syndrome_weight,
     }))
 }
-
-//
-// ------------------------------------------------------------
-// SPA (soft decision, LLR-domain, FULL 512 bits)
-// ------------------------------------------------------------
-//
 
 #[derive(Deserialize)]
 pub struct SpaDecodeRequest {
@@ -206,13 +205,26 @@ async fn decode_spa(
     }
     let valid_syndrome = BITFLIP_DECODER.get_parity(&cw_bytes, &mut sn);
     let syndrome_weight = sn.iter().filter(|&&b| b == 1).count();
+    let valid = converged && valid_syndrome && syndrome_weight == 0;
 
+    let duration = start.elapsed();
     DECODE_COUNT.fetch_add(1, Ordering::Relaxed);
-    LAST_LATENCY_US.store(start.elapsed().as_micros() as u64, Ordering::Relaxed);
+    LAST_LATENCY_US.store(duration.as_micros() as u64, Ordering::Relaxed);
     LAST_ITERATIONS.store(actual_iterations as u64, Ordering::Relaxed);
 
+    tracing::info!(
+        target: "ldpc_decoder",
+        algorithm = "spa",
+        duration_micros = duration.as_micros(),
+        iterations = actual_iterations,
+        converged = converged,
+        valid = valid,
+        syndrome_weight = syndrome_weight,
+        "spa decode completed"
+    );
+
     Ok(Json(SpaDecodeResponse {
-        valid: converged && valid_syndrome && syndrome_weight == 0,
+        valid,
         cw: decoded,
         syndrome_weight,
         iterations: actual_iterations,

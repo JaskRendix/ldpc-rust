@@ -13,6 +13,8 @@ tower = "0.5"
 rand = "0.10"
 rand_distr = "0.6"
 tower-http = { version = "0.7", features = ["timeout"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 criterion = "0.8"

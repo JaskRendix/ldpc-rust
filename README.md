@@ -70,6 +70,7 @@ tests/
 encoder_tests.rs
 fuzz_decoders.rs
 ldpc_tests.rs
+property_tests.rs
 server_tests.rs
 spa_decoder_tests.rs
 
