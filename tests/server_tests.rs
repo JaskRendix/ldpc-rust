@@ -26,7 +26,6 @@ async fn test_health() {
 async fn test_bitflip() {
     let app = ldpc_rust::server_router::router();
 
-    // MUST be 512 bits — server asserts this
     let payload = json!({
         "cw": vec![0u8; 512],
         "iterations": 5
@@ -47,7 +46,6 @@ async fn test_bitflip() {
 async fn test_spa_decode() {
     let app = ldpc_rust::server_router::router();
 
-    // MUST be 512 LLRs
     let payload = json!({
         "cw": vec![0.0f64; 512],
         "snr_db": 1.0,
@@ -73,6 +71,8 @@ async fn test_spa_decode() {
     assert!(parsed.get("cw").is_some());
     assert!(parsed.get("syndrome_weight").is_some());
     assert!(parsed.get("valid").is_some());
+    assert!(parsed.get("iterations").is_some());
+    assert!(parsed.get("converged").is_some());
 }
 
 #[tokio::test]
@@ -131,7 +131,7 @@ async fn test_spa_decode_invalid_scaling_factor() {
     let payload = json!({
         "cw": vec![1.0f64; 512],
         "snr_db": 1.0,
-        "scaling_factor": -0.5 // Invalid negative factor
+        "scaling_factor": -0.5
     });
 
     let request = Request::builder()

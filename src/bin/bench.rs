@@ -94,9 +94,11 @@ fn benchmark_spa_llr(smoke: bool) {
             llr[i] = bpsk_awgn_llr(cw[i], snr_db, &mut rng);
         }
 
-        let hard = decoder.decode(&llr);
-        if hard == cw {
-            converged_count += 1;
+        match decoder.decode(&llr) {
+            Ok(res) if res.converged && res.codeword == cw => {
+                converged_count += 1;
+            }
+            _ => {}
         }
     }
 

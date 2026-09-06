@@ -224,7 +224,7 @@ fn test_spa_decoder_nms_convergence() {
 
     // Provide clean channel LLRs for an all-zero codeword (positive LLRs)
     let llrs = vec![5.0; 512];
-    let decoded = decoder.decode(&llrs);
+    let decoded = decoder.decode(&llrs).unwrap().codeword;
 
     assert_eq!(decoded.len(), 512);
     assert!(decoded.iter().all(|&b| b == 0));

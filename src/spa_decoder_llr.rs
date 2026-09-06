@@ -1,3 +1,15 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecoderError {
+    InvalidInputLength,
+}
+
+#[derive(Debug, Clone)]
+pub struct DecodeResult {
+    pub codeword: Vec<u8>,
+    pub iterations: usize,
+    pub converged: bool,
+}
+
 pub struct SpaDecoderLLR<const M: usize, const N: usize> {
     pub max_iter: usize,
     pub scaling_factor: f64,
@@ -108,8 +120,11 @@ impl<const M: usize, const N: usize> SpaDecoderLLR<M, N> {
         self.scaling_factor = alpha;
     }
 
-    pub fn decode(&mut self, llr: &[f64]) -> Vec<u8> {
-        debug_assert_eq!(llr.len(), N);
+    pub fn decode(&mut self, llr: &[f64]) -> Result<DecodeResult, DecoderError> {
+        if llr.len() != N {
+            return Err(DecoderError::InvalidInputLength);
+        }
+
         for i in 0..M {
             for (k, &j) in self.row_to_cols[i].iter().enumerate() {
                 self.qnm[i][k] = llr[j];
@@ -117,8 +132,11 @@ impl<const M: usize, const N: usize> SpaDecoderLLR<M, N> {
         }
 
         let mut hard = vec![0u8; N];
+        let mut converged = false;
+        let mut final_iter = 0;
 
-        for _ in 0..self.max_iter {
+        for iter in 0..self.max_iter {
+            final_iter = iter + 1;
             for i in 0..M {
                 let row_len = self.row_to_cols[i].len();
                 let signs = &mut self.row_signs[i];
@@ -179,11 +197,16 @@ impl<const M: usize, const N: usize> SpaDecoderLLR<M, N> {
             }
 
             if self.check_syndrome(&hard) {
+                converged = true;
                 break;
             }
         }
 
-        hard
+        Ok(DecodeResult {
+            codeword: hard,
+            iterations: final_iter,
+            converged,
+        })
     }
 
     fn check_syndrome(&self, cw: &[u8]) -> bool {

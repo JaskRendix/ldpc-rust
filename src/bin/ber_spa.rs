@@ -58,7 +58,10 @@ fn main() {
                             llr[i] = bpsk_awgn_llr(cw[i], snr_db, &mut rng);
                         }
 
-                        let hard = decoder.decode(&llr);
+                        let hard = match decoder.decode(&llr) {
+                            Ok(res) => res.codeword,
+                            Err(_) => vec![1u8; n],
+                        };
 
                         for i in 0..n {
                             total_bits += 1;

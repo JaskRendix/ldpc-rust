@@ -119,7 +119,7 @@ fn test_encode_decode_roundtrip_spa() {
     let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(30);
 
-    let decoded = decoder.decode(&llrs);
+    let decoded = decoder.decode(&llrs).unwrap().codeword;
     assert_eq!(decoded[..256], msg);
 }
 

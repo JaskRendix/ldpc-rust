@@ -7,7 +7,7 @@ fn test_spa_decoder_all_zero_codeword() {
     decoder.set_max_iter(20);
 
     let llrs = vec![5.0; 512];
-    let decoded = decoder.decode(&llrs);
+    let decoded = decoder.decode(&llrs).unwrap().codeword;
 
     assert_eq!(decoded.len(), 512);
     assert!(decoded.iter().all(|&b| b == 0));
@@ -21,7 +21,7 @@ fn test_spa_decoder_single_error_recovery() {
     let mut llrs = vec![4.0; 512];
     llrs[42] = -4.0;
 
-    let decoded = decoder.decode(&llrs);
+    let decoded = decoder.decode(&llrs).unwrap().codeword;
 
     assert_eq!(decoded.len(), 512);
 
@@ -58,8 +58,8 @@ fn test_spa_decoder_scaling_factor_variations() {
 
     let llrs = vec![2.0; 512];
 
-    let res_nms = decoder_nms.decode(&llrs);
-    let res_ms = decoder_ms.decode(&llrs);
+    let res_nms = decoder_nms.decode(&llrs).unwrap().codeword;
+    let res_ms = decoder_ms.decode(&llrs).unwrap().codeword;
 
     assert_eq!(res_nms.len(), 512);
     assert_eq!(res_ms.len(), 512);
@@ -70,7 +70,7 @@ fn test_spa_decoder_preserves_dimensions() {
     let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     let llrs = vec![1.0; 512];
 
-    let decoded = decoder.decode(&llrs);
+    let decoded = decoder.decode(&llrs).unwrap().codeword;
     assert_eq!(decoded.len(), 512);
 }
 
@@ -80,7 +80,7 @@ fn test_spa_decoder_noisy_channel_zero_llrs() {
     decoder.set_max_iter(5);
 
     let llrs = vec![0.0; 512];
-    let decoded = decoder.decode(&llrs);
+    let decoded = decoder.decode(&llrs).unwrap().codeword;
 
     assert_eq!(decoded.len(), 512);
 }
@@ -91,7 +91,7 @@ fn test_spa_decoder_zero_iterations() {
     decoder.set_max_iter(0);
 
     let llrs = vec![2.0; 512];
-    let decoded = decoder.decode(&llrs);
+    let decoded = decoder.decode(&llrs).unwrap().codeword;
 
     assert_eq!(decoded.len(), 512);
     assert!(decoded.iter().all(|&b| b == 0));
@@ -104,7 +104,7 @@ fn test_spa_decoder_extreme_scaling_factors() {
     decoder.set_max_iter(10);
 
     let llrs = vec![3.0; 512];
-    let decoded = decoder.decode(&llrs);
+    let decoded = decoder.decode(&llrs).unwrap().codeword;
 
     assert_eq!(decoded.len(), 512);
 }
@@ -166,7 +166,7 @@ fn test_zero_iteration_behavior_sparse() {
     decoder.set_max_iter(0);
 
     let llrs = vec![2.0; 512];
-    let decoded = decoder.decode(&llrs);
+    let decoded = decoder.decode(&llrs).unwrap().codeword;
 
     assert!(decoded.iter().all(|&b| b == 0));
 
@@ -187,7 +187,7 @@ fn test_variable_node_update_sparse() {
     decoder.set_max_iter(1);
 
     let llrs = vec![1.0; 512];
-    let _decoded = decoder.decode(&llrs);
+    let _decoded = decoder.decode(&llrs).unwrap().codeword;
 
     for (j, &llr_j) in llrs.iter().enumerate().take(512) {
         let check_nodes = &decoder.col_to_rows()[j];
@@ -235,7 +235,7 @@ fn test_random_llr_stability_sparse() {
         })
         .collect();
 
-    let decoded = decoder.decode(&llrs);
+    let decoded = decoder.decode(&llrs).unwrap().codeword;
 
     assert_eq!(decoded.len(), 512);
     assert!(decoded.iter().all(|&b| b == 0 || b == 1));

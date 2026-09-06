@@ -29,7 +29,7 @@ fn test_fuzz_encode_decode_pipeline() {
             *llr = if bit == 0 { 4.0 } else { -4.0 };
         }
 
-        let decoded = decoder.decode(&llrs);
+        let decoded = decoder.decode(&llrs).unwrap().codeword;
 
         if trial % 10 == 0 {
             assert_eq!(&decoded[..256], &message);

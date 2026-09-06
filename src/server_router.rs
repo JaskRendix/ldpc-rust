@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::bitarray::BitArray;
 use crate::ldpc_decoder::LdpcDecoder;
 use crate::matrices::h_256_512::H_256_512;
-use crate::spa_decoder_llr::SpaDecoderLLR;
+use crate::spa_decoder_llr::{DecoderError, SpaDecoderLLR};
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -78,7 +78,7 @@ async fn decode_bitflip(
         ));
     }
 
-    let decoder = LdpcDecoder::new(&H_256_512);
+    let decoder: LdpcDecoder<256, 512> = LdpcDecoder::new(&H_256_512);
 
     // Pack the 512 individual bits into a 64-byte array
     let mut cw = [0u8; 64];
@@ -132,6 +132,8 @@ pub struct SpaDecodeResponse {
     pub valid: bool,
     pub cw: Vec<u8>, // decoded bits
     pub syndrome_weight: usize,
+    pub iterations: usize,
+    pub converged: bool,
 }
 
 async fn decode_spa(
@@ -165,7 +167,7 @@ async fn decode_spa(
         ));
     }
 
-    let mut decoder = SpaDecoderLLR::new(&H_256_512);
+    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(max_iter);
 
     if let Some(alpha) = req.scaling_factor {
@@ -181,7 +183,16 @@ async fn decode_spa(
         decoder.set_scaling_factor(alpha);
     }
 
-    let decoded = decoder.decode(&req.cw);
+    let decode_res = decoder.decode(&req.cw).map_err(|e| match e {
+        DecoderError::InvalidInputLength => (
+            StatusCode::BAD_REQUEST,
+            "Invalid input length for SPA decoder".to_string(),
+        ),
+    })?;
+
+    let decoded = decode_res.codeword;
+    let actual_iterations = decode_res.iterations;
+    let converged = decode_res.converged;
 
     // Compute syndrome weight
     let mut syndrome_weight = 0usize;
@@ -200,12 +211,14 @@ async fn decode_spa(
 
     DECODE_COUNT.fetch_add(1, Ordering::Relaxed);
     LAST_LATENCY_US.store(start.elapsed().as_micros() as u64, Ordering::Relaxed);
-    LAST_ITERATIONS.store(max_iter as u64, Ordering::Relaxed);
+    LAST_ITERATIONS.store(actual_iterations as u64, Ordering::Relaxed);
 
     Ok(Json(SpaDecodeResponse {
-        valid: syndrome_weight == 0,
+        valid: converged && syndrome_weight == 0,
         cw: decoded,
         syndrome_weight,
+        iterations: actual_iterations,
+        converged,
     }))
 }
 
