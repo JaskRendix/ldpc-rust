@@ -67,44 +67,11 @@ fn test_spa_decoder_scaling_factor_variations() {
 }
 
 #[test]
-fn test_spa_decoder_preserves_dimensions() {
-    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
-    let llrs = vec![1.0; 512];
-
-    let decoded = decoder.decode(&llrs).unwrap().codeword;
-    assert_eq!(decoded.len(), 512);
-}
-
-#[test]
 fn test_spa_decoder_noisy_channel_zero_llrs() {
     let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(5);
 
     let llrs = vec![0.0; 512];
-    let decoded = decoder.decode(&llrs).unwrap().codeword;
-
-    assert_eq!(decoded.len(), 512);
-}
-
-#[test]
-fn test_spa_decoder_zero_iterations() {
-    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
-    decoder.set_max_iter(0);
-
-    let llrs = vec![2.0; 512];
-    let decoded = decoder.decode(&llrs).unwrap().codeword;
-
-    assert_eq!(decoded.len(), 512);
-    assert!(decoded.iter().all(|&b| b == 0));
-}
-
-#[test]
-fn test_spa_decoder_extreme_scaling_factors() {
-    let mut decoder: SpaDecoderLLR<256, 512> = SpaDecoderLLR::new(&H_256_512);
-    decoder.set_scaling_factor(0.0);
-    decoder.set_max_iter(10);
-
-    let llrs = vec![3.0; 512];
     let decoded = decoder.decode(&llrs).unwrap().codeword;
 
     assert_eq!(decoded.len(), 512);

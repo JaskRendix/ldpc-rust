@@ -14,24 +14,28 @@ proptest! {
     }
 
     #[test]
-    fn prop_bitflip_convergence(error_idx in 0..512usize) {
+    fn prop_single_bit_error_not_worse(error_idx in 0..512usize) {
         let decoder = LdpcDecoder::<256, 512>::new(&H_256_512);
+
         let mut cw = [0u8; 64];
+
+        let mut syndrome_before = [0u8; 256];
+        let mut syndrome_after = [0u8; 256];
 
         let byte_idx = error_idx / 8;
         let bit_idx = error_idx % 8;
-        if byte_idx < cw.len() {
-            cw[byte_idx] ^= 1 << bit_idx;
-        }
 
-        let mut converged = false;
-        for _ in 0..20 {
-            if decoder.iterate_bitflip(&mut cw) {
-                converged = true;
-                break;
-            }
-        }
+        cw[byte_idx] ^= 1 << bit_idx;
 
-        prop_assert!(converged || !converged);
+        decoder.get_parity(&cw, &mut syndrome_before);
+        let before = syndrome_before.iter().filter(|&&x| x == 1).count();
+
+        let mut working = cw;
+        decoder.iterate_bitflip(&mut working);
+
+        decoder.get_parity(&working, &mut syndrome_after);
+        let after = syndrome_after.iter().filter(|&&x| x == 1).count();
+
+        prop_assert!(after <= before);
     }
 }

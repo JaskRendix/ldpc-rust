@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"], optional = true }
-axum = { version = "0.7", optional = true }
+axum = { version = "0.8", optional = true }
 tokio = { version = "1.37", features = ["full"], optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_arrays = "0.2"
@@ -21,6 +21,8 @@ spin = "0.12"
 [dev-dependencies]
 criterion = "0.8"
 proptest = "1.5"
+assert_cmd = "2"
+predicates = "3"
 
 [[bin]]
 name = "bench"

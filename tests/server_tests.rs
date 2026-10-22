@@ -394,3 +394,130 @@ async fn test_timeout_layer_integration() {
 
     assert_eq!(response.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn test_bitflip_zero_iterations() {
+    let app = ldpc_rust::server_router::router();
+
+    let payload = json!({
+        "cw": vec![0u8; 512],
+        "iterations": 0
+    });
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/decode/bitflip")
+        .header("content-type", "application/json")
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_bitflip_too_many_iterations() {
+    let app = ldpc_rust::server_router::router();
+
+    let payload = json!({
+        "cw": vec![0u8; 512],
+        "iterations": 201
+    });
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/decode/bitflip")
+        .header("content-type", "application/json")
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_spa_nan_snr() {
+    let app = ldpc_rust::server_router::router();
+
+    let cw = format!("{:?}", vec![0.0f64; 512]);
+
+    let body = format!(r#"{{"cw":{},"snr_db":"NaN","iterations":5}}"#, cw);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/decode/spa")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert!(response.status().is_client_error());
+}
+
+#[tokio::test]
+async fn test_spa_infinite_snr() {
+    let app = ldpc_rust::server_router::router();
+
+    let body = format!(
+        r#"{{"cw":{},"snr_db":1e999,"iterations":5}}"#,
+        serde_json::to_string(&vec![0.0f64; 512]).unwrap()
+    );
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/decode/spa")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert!(response.status().is_client_error());
+}
+
+#[tokio::test]
+async fn test_spa_snr_below_range() {
+    let app = ldpc_rust::server_router::router();
+
+    let payload = json!({
+        "cw": vec![0.0f64; 512],
+        "snr_db": -25.0,
+        "iterations": 5
+    });
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/decode/spa")
+        .header("content-type", "application/json")
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_spa_too_many_iterations() {
+    let app = ldpc_rust::server_router::router();
+
+    let payload = json!({
+        "cw": vec![0.0f64; 512],
+        "snr_db": 1.0,
+        "iterations": 500
+    });
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/decode/spa")
+        .header("content-type", "application/json")
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
