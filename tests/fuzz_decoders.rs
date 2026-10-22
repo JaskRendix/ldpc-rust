@@ -7,21 +7,25 @@ use rand::rngs::ThreadRng;
 #[test]
 fn test_fuzz_encode_decode_pipeline() {
     let mut rng = ThreadRng::default();
+
     let mut decoder = SpaDecoderLLR::new(&H_256_512);
     decoder.set_max_iter(30);
 
     for trial in 0..100 {
         let mut message = [0u8; 256];
-        for b in message.iter_mut() {
+
+        for b in &mut message {
             *b = (rng.next_u32() & 1) as u8;
         }
 
         let codeword = LDPC_ENCODER.encode(&message);
 
-        let mut llrs = vec![0.0f64; 512];
+        let mut llrs = vec![0.0; 512];
+
         for (i, llr) in llrs.iter_mut().enumerate() {
             let mut bit = codeword[i];
 
+            // Inject deterministic errors every 10th trial
             if trial % 10 == 0 && i < 10 {
                 bit ^= 1;
             }
@@ -31,6 +35,13 @@ fn test_fuzz_encode_decode_pipeline() {
 
         let decoded = decoder.decode(&llrs).unwrap().codeword;
 
+        // Always validate decoder output shape
+        assert_eq!(decoded.len(), 512);
+
+        // Always validate binary output
+        assert!(decoded.iter().all(|&b| b <= 1));
+
+        // Strong check on corrupted trials
         if trial % 10 == 0 {
             assert_eq!(&decoded[..256], &message);
         }
