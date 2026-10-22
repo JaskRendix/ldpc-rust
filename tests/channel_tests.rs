@@ -114,13 +114,14 @@ fn test_nakagami_llr_finite() {
 }
 
 #[test]
-fn test_block_fading_llrs_length() {
+fn test_block_fading_llrs_valid_output() {
     let mut rng = StdRng::seed_from_u64(2024);
 
     let bits = vec![0u8; 512];
     let llrs = block_fading_llrs(&bits, 3.0, &mut rng);
 
-    assert_eq!(llrs.len(), 512);
+    assert_eq!(llrs.len(), bits.len());
+    assert!(llrs.iter().all(|v| v.is_finite()));
 }
 
 #[test]
@@ -145,13 +146,14 @@ fn test_block_fading_same_h() {
 }
 
 #[test]
-fn test_freq_selective_llrs_length() {
+fn test_freq_selective_llrs_valid_output() {
     let mut rng = StdRng::seed_from_u64(3030);
 
     let bits = vec![1u8; 512];
     let llrs = frequency_selective_llrs(&bits, 2.0, &mut rng);
 
-    assert_eq!(llrs.len(), 512);
+    assert_eq!(llrs.len(), bits.len());
+    assert!(llrs.iter().all(|v| v.is_finite()));
 }
 
 #[test]

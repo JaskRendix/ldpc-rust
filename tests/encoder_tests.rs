@@ -124,15 +124,16 @@ fn test_encode_decode_roundtrip_spa() {
 }
 
 #[test]
-fn test_hard_decision_decoders_roundtrip() {
+fn test_wbf_converges_on_valid_codeword() {
     use ldpc_rust::bitarray::BitArray;
 
     let mut msg = [0u8; 256];
     msg[5] = 1;
     msg[100] = 1;
+
     let cw = LDPC_ENCODER.encode(&msg);
 
-    // Pack into 64 bytes for hard-decision decoders
+    // Pack into the format expected by hard-decision decoders
     let mut cw_bytes = [0u8; 64];
     for (i, &bit) in cw.iter().enumerate() {
         if bit == 1 {
@@ -141,7 +142,13 @@ fn test_hard_decision_decoders_roundtrip() {
     }
 
     let decoder: LdpcDecoder<256, 512> = LdpcDecoder::new(&H_256_512);
+
+    // A valid codeword should already satisfy parity checks
     assert!(decoder.iterate_wbf(&mut cw_bytes));
+
+    let mut syndrome = [0u8; 256];
+    assert!(decoder.get_parity(&cw_bytes, &mut syndrome));
+    assert!(syndrome.iter().all(|&b| b == 0));
 }
 
 #[test]

@@ -34,6 +34,7 @@ fn test_custom_matrix_decoding_convergence() {
     let res = result.unwrap();
     assert!(res.converged);
     assert_eq!(res.codeword, vec![0u8; TestMatrix4x8::COLS]);
+    assert!(decoder.check_syndrome_public(&res.codeword));
 }
 
 #[test]

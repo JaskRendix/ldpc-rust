@@ -127,7 +127,7 @@ fn xor_bytes_is_self_inverse() {
 }
 
 #[test]
-fn xor_bytes_does_not_panic_on_large_input() {
+fn xor_bytes_large_input_correctness() {
     let mut dst = [0u8; 64];
     let src = [0xFFu8; 64];
 
